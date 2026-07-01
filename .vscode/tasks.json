@@ -1,0 +1,113 @@
+﻿{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "kaoshi: start all",
+      "type": "shell",
+      "command": "python",
+      "args": [
+        "${workspaceFolder}/start_dev.py"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "kaoshi: reset and start all",
+      "type": "shell",
+      "command": "python",
+      "args": [
+        "${workspaceFolder}/start_dev.py",
+        "--reset"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "kaoshi: stop all",
+      "type": "shell",
+      "command": "python",
+      "args": [
+        "${workspaceFolder}/stop_dev.py"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "kaoshi: reset docker data",
+      "type": "shell",
+      "command": "powershell",
+      "args": [
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}/scripts/reset-docker-data.ps1"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "kaoshi: reset local mysql database",
+      "type": "shell",
+      "command": "powershell",
+      "args": [
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}/scripts/reset-local-db.ps1"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "kaoshi: start backend",
+      "type": "shell",
+      "command": "powershell",
+      "args": [
+        "-NoExit",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}/scripts/run-backend.ps1"
+      ],
+      "isBackground": true,
+      "problemMatcher": []
+    },
+    {
+      "label": "kaoshi: start frontend",
+      "type": "shell",
+      "command": "powershell",
+      "args": [
+        "-NoExit",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}/scripts/run-frontend.ps1"
+      ],
+      "isBackground": true,
+      "problemMatcher": []
+    },
+    {
+      "label": "kaoshi: verify",
+      "type": "shell",
+      "command": "python",
+      "args": [
+        "${workspaceFolder}/start_test.py"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "kaoshi: browser test",
+      "type": "shell",
+      "command": "python",
+      "args": [
+        "${workspaceFolder}/start_browser_test.py"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "kaoshi: stop test",
+      "type": "shell",
+      "command": "python",
+      "args": [
+        "${workspaceFolder}/stop_test.py"
+      ],
+      "problemMatcher": []
+    }
+  ]
+}
+

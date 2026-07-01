@@ -1,0 +1,134 @@
+package com.kaoshi.admin.user;
+
+import com.kaoshi.admin.role.mapper.AdminRoleMapper;
+import com.kaoshi.admin.user.dto.AdminUserResponse;
+import com.kaoshi.admin.user.dto.UserCreateRequest;
+import com.kaoshi.admin.user.dto.UserUpdateRequest;
+import com.kaoshi.admin.user.mapper.AdminUserMapper;
+import com.kaoshi.common.api.ErrorCode;
+import com.kaoshi.common.exception.BusinessException;
+import com.kaoshi.common.page.PageRequest;
+import com.kaoshi.common.page.PageResponse;
+import com.kaoshi.user.domain.UserAccount;
+import com.kaoshi.user.mapper.UserMapper;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Set;
+import java.util.HashSet;
+
+@Service
+public class AdminUserService {
+    private final UserMapper userMapper;
+    private final AdminUserMapper adminUserMapper;
+    private final AdminRoleMapper adminRoleMapper;
+    private final PasswordEncoder passwordEncoder;
+
+    public AdminUserService(
+            UserMapper userMapper,
+            AdminUserMapper adminUserMapper,
+            AdminRoleMapper adminRoleMapper,
+            PasswordEncoder passwordEncoder
+    ) {
+        this.userMapper = userMapper;
+        this.adminUserMapper = adminUserMapper;
+        this.adminRoleMapper = adminRoleMapper;
+        this.passwordEncoder = passwordEncoder;
+    }
+
+    public PageResponse<AdminUserResponse> page(PageRequest request) {
+        long total = adminUserMapper.countUsers(request.keywordLike());
+        List<AdminUserResponse> records = adminUserMapper.findUsers(request.keywordLike(), request.size(), request.offset())
+                .stream()
+                .map(this::toResponse)
+                .toList();
+        return new PageResponse<>(records, total, request.page(), request.size());
+    }
+
+    public AdminUserResponse detail(Long id) {
+        return toResponse(findUser(id));
+    }
+
+    @Transactional
+    public AdminUserResponse create(UserCreateRequest request) {
+        if (adminUserMapper.countByUsername(request.username()) > 0) {
+            throw new BusinessException(ErrorCode.CONFLICT, "账号已存在");
+        }
+        ensureRolesExist(request.roleIds());
+
+        UserAccount user = new UserAccount();
+        user.setUsername(request.username());
+        user.setDisplayName(request.displayName());
+        user.setPasswordHash(passwordEncoder.encode(request.password()));
+        user.setStatus("ACTIVE");
+        userMapper.insert(user);
+        replaceRoles(user.getId(), request.roleIds());
+        return detail(user.getId());
+    }
+
+    @Transactional
+    public AdminUserResponse update(Long id, UserUpdateRequest request) {
+        ensureRolesExist(request.roleIds());
+        UserAccount user = findUser(id);
+        user.setDisplayName(request.displayName());
+        if (request.password() != null && !request.password().isBlank()) {
+            user.setPasswordHash(passwordEncoder.encode(request.password()));
+        }
+        user.setUpdatedAt(LocalDateTime.now());
+        userMapper.updateById(user);
+        replaceRoles(id, request.roleIds());
+        return detail(id);
+    }
+
+    @Transactional
+    public AdminUserResponse changeStatus(Long id, String status) {
+        if (!List.of("ACTIVE", "DISABLED").contains(status)) {
+            throw new BusinessException(ErrorCode.VALIDATION_FAILED, "用户状态不合法");
+        }
+        if (id == 1L && "DISABLED".equals(status)) {
+            throw new BusinessException(ErrorCode.CONFLICT, "不能禁用种子管理员");
+        }
+        UserAccount user = findUser(id);
+        user.setStatus(status);
+        user.setUpdatedAt(LocalDateTime.now());
+        userMapper.updateById(user);
+        return detail(id);
+    }
+
+    private void replaceRoles(Long userId, List<Long> roleIds) {
+        adminUserMapper.deleteUserRoles(userId);
+        roleIds.forEach(roleId -> adminUserMapper.insertUserRole(userId, roleId));
+    }
+
+    private UserAccount findUser(Long id) {
+        UserAccount user = userMapper.selectById(id);
+        if (user == null) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, "用户不存在");
+        }
+        return user;
+    }
+
+    private void ensureRolesExist(List<Long> roleIds) {
+        Set<Long> uniqueRoleIds = new HashSet<>(roleIds);
+        long existingRoleCount = adminRoleMapper.countByIds(uniqueRoleIds);
+        if (existingRoleCount != uniqueRoleIds.size()) {
+            throw new BusinessException(ErrorCode.VALIDATION_FAILED, "角色不存在");
+        }
+    }
+
+    private AdminUserResponse toResponse(UserAccount user) {
+        return new AdminUserResponse(
+                user.getId(),
+                user.getUsername(),
+                user.getDisplayName(),
+                user.getStatus(),
+                adminUserMapper.findRoleCodes(user.getId()),
+                user.getCreatedAt(),
+                user.getUpdatedAt()
+        );
+    }
+}
+

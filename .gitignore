@@ -6,6 +6,7 @@ Thumbs.db
 .idea/
 .vscode/*
 !.vscode/extensions.json
+!.vscode/tasks.json
 
 # Java
 target/
@@ -20,6 +21,10 @@ node_modules/
 dist/
 dist-ssr/
 coverage/
+playwright-report/
+test-results/
+frontend/playwright-report/
+frontend/test-results/
 *.local
 
 # Logs
@@ -46,3 +51,5 @@ temp/
 .gradle/
 .cache/
 .turbo/
+__pycache__/
+*.pyc

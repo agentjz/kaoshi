@@ -1,4 +1,105 @@
-# gaokao 初始化 Plan
+# gaokao 初始化与开源参考纪律 Plan
+
+## 当前任务：开源参考项目调研和参考优先纪律
+
+### 1. 需求文档
+
+本次任务确认 gaokao 的后续建设方式：先充分研究成熟考试平台，再基于产品目标吸收其优势，形成自己的架构和实现。gaokao 的开发过程应避免凭空设计考试平台通用能力，特别是题库、试卷、考试发布、作答、评分、成绩、权限和管理端信息架构。
+
+业务完成标准：
+
+- 对已克隆的考试平台参考项目做一轮结构调研。
+- 记录哪些项目值得重点参考，以及各自适合参考的方向。
+- 把“成熟项目优先参考、吸收优势、再做当前产品设计”的纪律写入 `AGENTS.md` 和 `gaokao-development` skill。
+- 文档表达为工程纪律和设计方法，不把任何第三方项目写成运行时依赖或当前产品能力。
+
+### 2. 当前事实
+
+- gaokao 已初始化根文档和项目级 skills。
+- 参考项目目录位于 `C:\Users\Administrator\Desktop\exam-platform-research`。
+- 已克隆多个前后端分离或考试管理相关项目，覆盖 Spring Boot、MySQL、MyBatis/JPA、Vue、React 和 Angular 等路线。
+- 当前 gaokao 尚未创建后端、前端、数据库和部署代码。
+
+### 3. 失败测试
+
+- `AGENTS.md` 没有要求实现前先研究成熟考试平台。
+- `gaokao-development` skill 没有要求参考成熟项目、复用成熟模式和避免重新发明通用考试平台能力。
+- 文档把第三方项目直接写成 gaokao 的当前能力或运行时依赖。
+- 调研只停留在口头判断，没有基于本地参考项目文件结构、依赖和模块事实。
+
+### 4. 目标
+
+- 完成参考项目结构扫描。
+- 明确重点参考项目和参考方向。
+- 更新 `AGENTS.md` 和 `.codex/skills/gaokao-development/SKILL.md`。
+- 更新 `plan.md` 收口，记录调研事实、验证和剩余风险。
+
+### 5. 不做范围
+
+- 本次不复制第三方项目源码到 gaokao。
+- 本次不选择某一个项目作为 fork 基座。
+- 本次不创建业务代码。
+- 本次不修改 README/spec 的当前产品能力描述。
+
+### 6. 设计
+
+参考纪律写入两层：
+
+- `AGENTS.md` 记录仓库级最高协作纪律：大功能实现前必须先研究成熟项目和当前项目事实。
+- `gaokao-development` skill 记录开发执行规则：优先参考成熟项目的领域模型、页面组织、权限边界、数据库结构和验证方式；只吸收设计，不直接照搬不适配的代码。
+
+参考项目只作为 research 输入，不成为 gaokao 的运行时依赖。后续每条实现主线都要在 `plan.md` 中写明参考了哪些项目、采用了哪些模式、舍弃了哪些模式。
+
+### 7. 实施任务
+
+- [x] R001 扫描参考项目目录和技术栈。
+- [x] R002 总结重点参考项目和参考方向。
+- [x] R003 更新 `AGENTS.md` 加入成熟项目参考纪律。
+- [x] R004 更新 `gaokao-development` skill 加入参考优先规则。
+- [x] R005 验证文档没有把第三方项目写成当前能力。
+- [x] R006 收口记录完成事实和剩余风险。
+
+### 8. 验证计划
+
+执行：
+
+```powershell
+rg -n "成熟|参考|开源|research|第三方|运行时依赖" AGENTS.md .codex/skills/gaokao-development/SKILL.md plan.md
+rg -n "xzs|yfexam|examOnlinePublic|online_exam|SpringBoot-Vue-OnlineExam" README.md spec.md
+```
+
+### 9. 收口
+
+已完成。
+
+完成事实：
+
+- 已扫描 `C:\Users\Administrator\Desktop\exam-platform-research` 下参考项目。
+- 参考样本覆盖 Java/Spring Boot/MySQL/MyBatis/JPA、Vue/React/Angular、Vite/TypeScript、单体和多模块架构。
+- 已确认重点参考方向：
+  - `yfexam`、`examOnlinePublic`、`online_exam` 适合参考题库、试题、试卷和管理端组织。
+  - `SpringBoot-Vue-OnlineExam` 适合参考考试、试题、试卷 SQL 样例和考试流程。
+  - `online-examination-platform` 适合参考多模块边界，但当前不作为默认复杂度基准。
+  - `Exam-Portal` 适合参考 Spring Security、JWT 和学生考试流程。
+  - React/Angular 项目适合补充对照，不作为默认前端路线。
+- 已在 `AGENTS.md` 增加开源参考纪律。
+- 已在 `.codex/skills/gaokao-development/SKILL.md` 增加开源参考纪律、参考项目清单和按任务类型选择参考项目的规则。
+
+验证结果：
+
+- `rg -n "成熟|参考|开源|research|第三方|运行时依赖" AGENTS.md .codex/skills/gaokao-development/SKILL.md plan.md` 已执行，能命中新规则。
+- `rg -n "xzs|yfexam|examOnlinePublic|online_exam|SpringBoot-Vue-OnlineExam" README.md spec.md` 已执行，未发现 README/spec 把第三方项目写成当前产品能力。
+
+未验证内容：
+
+- 尚未逐个运行参考项目。
+- 尚未把参考项目差异整理成正式架构设计。
+
+剩余风险：
+
+- 后续进入具体模块实现时，仍需按模块重新做更细粒度 research，不能只依赖本次粗扫描结论。
+
+---
 
 ## 1. 需求文档
 

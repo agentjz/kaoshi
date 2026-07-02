@@ -8,6 +8,7 @@ public record ExamSessionResponse(
         Long attemptId,
         String title,
         Integer durationMinutes,
+        String displayMode,
         LocalDateTime startedAt,
         String attemptStatus,
         List<ExamQuestionResponse> questions

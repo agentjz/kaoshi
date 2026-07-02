@@ -46,12 +46,15 @@ public interface QuestionMapper {
     @Select("select name from question_banks where id = #{id}")
     String findBankName(@Param("id") Long id);
 
+    @Select("select id from question_banks where name = #{name}")
+    Long findBankIdByName(@Param("name") String name);
+
     @Select("select count(*) from question_banks where id = #{id}")
     long countBankById(@Param("id") Long id);
 
     @Insert("""
-            insert into questions (bank_id, type, stem, analysis, score, difficulty, status)
-            values (#{bankId}, #{type}, #{stem}, #{analysis}, #{score}, #{difficulty}, #{status})
+            insert into questions (bank_id, type, stem, analysis, difficulty, status)
+            values (#{bankId}, #{type}, #{stem}, #{analysis}, #{difficulty}, #{status})
             """)
     @Options(useGeneratedKeys = true, keyProperty = "id")
     void insertQuestion(Question question);
@@ -62,7 +65,6 @@ public interface QuestionMapper {
                 type = #{type},
                 stem = #{stem},
                 analysis = #{analysis},
-                score = #{score},
                 difficulty = #{difficulty},
                 status = #{status},
                 updated_at = current_timestamp

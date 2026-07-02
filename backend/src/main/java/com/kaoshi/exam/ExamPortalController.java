@@ -1,6 +1,7 @@
 package com.kaoshi.exam;
 
 import com.kaoshi.common.api.ApiResponse;
+import com.kaoshi.exam.dto.ExamResultDetailResponse;
 import com.kaoshi.exam.dto.ExamResponse;
 import com.kaoshi.exam.dto.ExamResultResponse;
 import com.kaoshi.exam.dto.ExamSessionResponse;
@@ -29,8 +30,8 @@ public class ExamPortalController {
     }
 
     @GetMapping("/tasks")
-    public ApiResponse<List<ExamResponse>> tasks() {
-        return ApiResponse.ok(examService.publishedExams());
+    public ApiResponse<List<ExamResponse>> tasks(@AuthenticationPrincipal AuthUser user) {
+        return ApiResponse.ok(examService.publishedExams(user.id()));
     }
 
     @PostMapping("/{examId}/start")
@@ -53,6 +54,14 @@ public class ExamPortalController {
     @GetMapping("/results")
     public ApiResponse<List<ExamResultResponse>> myResults(@AuthenticationPrincipal AuthUser user) {
         return ApiResponse.ok(examService.userResults(user.id()));
+    }
+
+    @GetMapping("/results/{resultId}")
+    public ApiResponse<ExamResultDetailResponse> myResultDetail(
+            @PathVariable Long resultId,
+            @AuthenticationPrincipal AuthUser user
+    ) {
+        return ApiResponse.ok(examService.userResultDetail(resultId, user.id()));
     }
 }
 

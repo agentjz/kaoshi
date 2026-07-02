@@ -27,7 +27,6 @@ create table questions (
   type varchar(32) not null,
   stem text not null,
   analysis text null,
-  score decimal(6,2) not null,
   difficulty varchar(20) not null,
   status varchar(20) not null,
   created_at datetime not null default current_timestamp,
@@ -106,9 +105,14 @@ create table exams (
   paper_id bigint not null,
   title varchar(128) not null,
   description varchar(500) null,
+  qualify_score decimal(7,2) not null default 0,
   start_time datetime not null,
   end_time datetime not null,
   duration_minutes int not null,
+  time_limit bit not null default true,
+  attempt_limit int null,
+  display_mode varchar(20) not null default 'PAGED',
+  open_type varchar(20) not null default 'PUBLIC',
   status varchar(20) not null,
   created_at datetime not null default current_timestamp,
   updated_at datetime not null default current_timestamp on update current_timestamp,
@@ -116,6 +120,15 @@ create table exams (
   index idx_exams_paper (paper_id),
   index idx_exams_status (status),
   index idx_exams_time (start_time, end_time)
+);
+
+create table exam_departments (
+  exam_id bigint not null,
+  department_id bigint not null,
+  created_at datetime not null default current_timestamp,
+  primary key (exam_id, department_id),
+  constraint fk_exam_departments_exam foreign key (exam_id) references exams (id),
+  constraint fk_exam_departments_department foreign key (department_id) references departments (id)
 );
 
 create table exam_attempts (
@@ -132,7 +145,7 @@ create table exam_attempts (
   updated_at datetime not null default current_timestamp on update current_timestamp,
   constraint fk_exam_attempts_exam foreign key (exam_id) references exams (id),
   constraint fk_exam_attempts_user foreign key (user_id) references users (id),
-  constraint uk_exam_attempts_exam_user unique (exam_id, user_id),
+  index idx_exam_attempts_exam_user (exam_id, user_id),
   index idx_exam_attempts_user (user_id),
   index idx_exam_attempts_status (status)
 );
@@ -177,11 +190,11 @@ values (1, '默认试题分类', '系统初始化试题分类', 10);
 insert into question_banks (id, category_id, name, description, status)
 values (1, 1, '英语基础题库', '系统初始化题库，用于验证单选和多选主链路', 'ACTIVE');
 
-insert into questions (id, bank_id, type, stem, analysis, score, difficulty, status)
+insert into questions (id, bank_id, type, stem, analysis, difficulty, status)
 values
-  (1, 1, 'SINGLE_CHOICE', 'Choose the correct sentence.', 'Subject and verb agreement: He goes to school every day.', 5.00, 'EASY', 'ACTIVE'),
-  (2, 1, 'MULTIPLE_CHOICE', 'Which words are nouns?', 'Book and teacher are nouns.', 5.00, 'EASY', 'ACTIVE'),
-  (3, 1, 'SINGLE_CHOICE', 'Which option means “提高”?', 'Improve means 提高.', 5.00, 'EASY', 'ACTIVE');
+  (1, 1, 'SINGLE_CHOICE', 'Choose the correct sentence.', 'Subject and verb agreement: He goes to school every day.', 'EASY', 'ACTIVE'),
+  (2, 1, 'MULTIPLE_CHOICE', 'Which words are nouns?', 'Book and teacher are nouns.', 'EASY', 'ACTIVE'),
+  (3, 1, 'SINGLE_CHOICE', 'Which option means “提高”?', 'Improve means 提高.', 'EASY', 'ACTIVE');
 
 insert into question_options (question_id, option_label, content, is_correct, sort_order)
 values
@@ -199,7 +212,7 @@ values
   (3, 'D', 'remain', false, 40);
 
 insert into question_attachments (question_id, file_name, file_url, media_type, sort_order)
-values (1, 'sample-audio.mp3', '/local-assets/sample-audio.mp3', 'AUDIO', 10);
+values (1, 'dog-wolf-friendship.mp3', '/local-assets/dog-wolf-friendship.mp3', 'AUDIO', 10);
 
 insert into paper_categories (id, name, description, sort_order)
 values (1, '默认试卷分类', '系统初始化试卷分类', 10);
@@ -213,16 +226,14 @@ values
   (1, 2, 5.00, 20),
   (1, 3, 5.00, 30);
 
-insert into exams (id, paper_id, title, description, start_time, end_time, duration_minutes, status)
-values (1, 1, '英语基础模拟考试', '系统初始化考试，用于验证考试端作答闭环', '2026-01-01 00:00:00', '2026-12-31 23:59:59', 30, 'PUBLISHED');
+insert into exams (id, paper_id, title, description, qualify_score, start_time, end_time, duration_minutes, time_limit, attempt_limit, display_mode, open_type, status)
+values (1, 1, '英语基础模拟考试', '系统初始化考试，用于验证考试端作答闭环', 9.00, '2026-01-01 00:00:00', '2026-12-31 23:59:59', 30, true, null, 'PAGED', 'PUBLIC', 'PUBLISHED');
 
 insert into menus (id, code, title, path, parent_id, sort_order, icon)
 values
-  (6, 'question-banks', '题库管理', '/admin/question-banks', null, 60, 'Collection'),
-  (7, 'questions', '试题管理', '/admin/questions', null, 70, 'Document'),
-  (8, 'papers', '试卷管理', '/admin/papers', null, 80, 'Tickets'),
-  (9, 'exams', '考试管理', '/admin/exams', null, 90, 'Timer'),
-  (10, 'results', '成绩管理', '/admin/results', null, 100, 'DataAnalysis');
+  (6, 'question-banks', '题库管理', '/exam/repo', null, 60, 'Collection'),
+  (7, 'questions', '试题管理', '/exam/qu', null, 70, 'Document'),
+  (8, 'exams', '考试管理', '/exam/manage', null, 80, 'Timer');
 
 insert into role_menus (role_id, menu_id)
-select 1, id from menus where id between 6 and 10;
+select 1, id from menus where id between 6 and 8;

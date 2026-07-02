@@ -32,6 +32,12 @@ public interface AdminUserMapper {
     @Select("select count(*) from users where username = #{username} and deleted_at is null")
     int countByUsername(@Param("username") String username);
 
+    @Select("select count(*) from departments where id = #{departmentId} and status = 'ACTIVE'")
+    int countActiveDepartmentById(@Param("departmentId") Long departmentId);
+
+    @Select("select name from departments where id = #{departmentId}")
+    String findDepartmentName(@Param("departmentId") Long departmentId);
+
     @Insert("""
             insert into user_roles (user_id, role_id)
             values (#{userId}, #{roleId})

@@ -6,12 +6,19 @@ import {
   createPaper,
   createQuestion,
   createQuestionBank,
+  downloadQuestionImportTemplate,
+  fetchAdminResultDetail,
   fetchAdminResults,
   fetchExamTasks,
+  fetchMyExamResultDetail,
+  fetchMyExamResults,
   fetchPapers,
   fetchQuestionBanks,
+  fetchQuestionDetail,
+  importQuestions,
   startExam,
   submitExam,
+  uploadFile,
 } from './exam-business'
 
 vi.mock('./client', () => ({
@@ -46,7 +53,6 @@ describe('exam business api', () => {
       type: 'SINGLE_CHOICE',
       stem: 'stem',
       analysis: '',
-      score: 5,
       difficulty: 'EASY',
       status: 'ACTIVE',
       options: [
@@ -67,9 +73,15 @@ describe('exam business api', () => {
       paperId: 1,
       title: 'exam',
       description: '',
+      qualifyScore: 3,
       startTime: '2026-01-01T00:00:00',
       endTime: '2026-12-31T23:59:59',
       durationMinutes: 30,
+      timeLimit: true,
+      attemptLimit: null,
+      displayMode: 'PAGED',
+      openType: 'PUBLIC',
+      departmentIds: [],
       status: 'PUBLISHED',
     })
 
@@ -84,7 +96,6 @@ describe('exam business api', () => {
       type: 'SINGLE_CHOICE',
       stem: 'stem',
       analysis: '',
-      score: 5,
       difficulty: 'EASY',
       status: 'ACTIVE',
       options: [
@@ -97,9 +108,15 @@ describe('exam business api', () => {
       paperId: 1,
       title: 'exam',
       description: '',
+      qualifyScore: 3,
       startTime: '2026-01-01T00:00:00',
       endTime: '2026-12-31T23:59:59',
       durationMinutes: 30,
+      timeLimit: true,
+      attemptLimit: null,
+      displayMode: 'PAGED',
+      openType: 'PUBLIC',
+      departmentIds: [],
       status: 'PUBLISHED',
     })
   })
@@ -112,6 +129,9 @@ describe('exam business api', () => {
     await startExam(1)
     await submitExam(1, [{ questionId: 2, selectedLabels: ['A'] }])
     await fetchAdminResults()
+    await fetchAdminResultDetail(9)
+    await fetchMyExamResults()
+    await fetchMyExamResultDetail(9)
 
     expect(apiClient.get).toHaveBeenCalledWith('/api/exam/tasks')
     expect(apiClient.post).toHaveBeenCalledWith('/api/exam/1/start')
@@ -119,5 +139,23 @@ describe('exam business api', () => {
       answers: [{ questionId: 2, selectedLabels: ['A'] }],
     })
     expect(apiClient.get).toHaveBeenCalledWith('/api/admin/results')
+    expect(apiClient.get).toHaveBeenCalledWith('/api/admin/results/9')
+    expect(apiClient.get).toHaveBeenCalledWith('/api/exam/results')
+    expect(apiClient.get).toHaveBeenCalledWith('/api/exam/results/9')
+  })
+
+  it('uses question detail template and import endpoints', async () => {
+    vi.mocked(apiClient.get).mockResolvedValue(ok({}))
+    vi.mocked(apiClient.post).mockResolvedValue(ok({}))
+
+    await fetchQuestionDetail(8)
+    await downloadQuestionImportTemplate()
+    await importQuestions(new File(['xlsx'], 'questions.xlsx'))
+    await uploadFile(new File(['audio'], 'listening.mp3'))
+
+    expect(apiClient.get).toHaveBeenCalledWith('/api/admin/questions/8')
+    expect(apiClient.get).toHaveBeenCalledWith('/api/admin/questions/import-template', { responseType: 'blob' })
+    expect(apiClient.post).toHaveBeenCalledWith('/api/admin/questions/import', expect.any(FormData))
+    expect(apiClient.post).toHaveBeenCalledWith('/api/admin/files', expect.any(FormData))
   })
 })

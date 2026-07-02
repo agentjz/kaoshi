@@ -23,11 +23,9 @@ create table role_menus (
 
 insert into menus (id, code, title, path, parent_id, sort_order, icon)
 values
-  (1, 'dashboard', '工作台', '/admin', null, 10, 'Grid'),
-  (2, 'users', '用户管理', '/admin/users', null, 20, 'User'),
-  (3, 'roles', '角色管理', '/admin/roles', null, 30, 'Key'),
-  (4, 'permissions', '权限清单', '/admin/permissions', null, 40, 'Lock'),
-  (5, 'menus', '菜单清单', '/admin/menus', null, 50, 'Menu');
+  (1, 'dashboard', '工作台', '/dashboard', null, 10, 'Grid'),
+  (2, 'users', '用户管理', '/sys/users', null, 20, 'User'),
+  (3, 'roles', '角色管理', '/sys/roles', null, 30, 'Key');
 
 insert into role_menus (role_id, menu_id)
 select 1, id from menus;

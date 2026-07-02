@@ -3,7 +3,6 @@
     <header class="admin-page__header">
       <div>
         <h1>用户管理</h1>
-        <p>维护平台账号、启用状态和角色边界。</p>
       </div>
       <el-button type="primary" :icon="Plus" @click="openCreateDialog">新建用户</el-button>
     </header>
@@ -23,10 +22,15 @@
     <el-table v-loading="loading" :data="users" class="data-table" border>
       <el-table-column prop="username" label="账号" min-width="140" />
       <el-table-column prop="displayName" label="姓名" min-width="140" />
+      <el-table-column label="部门" min-width="140">
+        <template #default="{ row }: { row: AdminUser }">
+          {{ row.departmentName || '未分配' }}
+        </template>
+      </el-table-column>
       <el-table-column label="角色" min-width="220">
         <template #default="{ row }: { row: AdminUser }">
           <el-space wrap>
-            <el-tag v-for="role in row.roles" :key="role" effect="plain">{{ role }}</el-tag>
+            <el-tag v-for="role in row.roles" :key="role" effect="plain">{{ roleName(role) }}</el-tag>
           </el-space>
         </template>
       </el-table-column>
@@ -73,6 +77,17 @@
         <el-form-item label="姓名" prop="displayName">
           <el-input v-model.trim="form.displayName" maxlength="64" />
         </el-form-item>
+        <el-form-item label="部门">
+          <el-tree-select
+            v-model="form.departmentId"
+            :data="departments"
+            :props="{ label: 'name', value: 'id', children: 'children' }"
+            check-strictly
+            clearable
+            class="form-control"
+            placeholder="选择部门"
+          />
+        </el-form-item>
         <el-form-item :label="editingUser ? '新密码' : '密码'" prop="password">
           <el-input
             v-model="form.password"
@@ -103,15 +118,18 @@ import { Plus, Search } from '@element-plus/icons-vue'
 import {
   changeAdminUserStatus,
   createAdminUser,
+  fetchDepartments,
   fetchAdminRoles,
   fetchAdminUsers,
   updateAdminUser,
+  type Department,
   type AdminRole,
   type AdminUser,
 } from '@/api/admin'
 
 interface UserForm {
   username: string
+  departmentId: number | null
   displayName: string
   password: string
   roleIds: number[]
@@ -119,6 +137,7 @@ interface UserForm {
 
 const users = ref<AdminUser[]>([])
 const roles = ref<AdminRole[]>([])
+const departments = ref<Department[]>([])
 const total = ref(0)
 const loading = ref(false)
 const saving = ref(false)
@@ -134,6 +153,7 @@ const query = reactive({
 
 const form = reactive<UserForm>({
   username: '',
+  departmentId: null,
   displayName: '',
   password: '',
   roleIds: [],
@@ -162,8 +182,12 @@ const rules: FormRules<UserForm> = {
 }
 
 onMounted(async () => {
-  await Promise.all([loadRoles(), loadUsers()])
+  await Promise.all([loadDepartments(), loadRoles(), loadUsers()])
 })
+
+async function loadDepartments() {
+  departments.value = await fetchDepartments()
+}
 
 async function loadRoles() {
   roles.value = await fetchAdminRoles()
@@ -187,6 +211,7 @@ async function loadUsers() {
 function openCreateDialog() {
   editingUser.value = null
   form.username = ''
+  form.departmentId = null
   form.displayName = ''
   form.password = ''
   form.roleIds = []
@@ -196,6 +221,7 @@ function openCreateDialog() {
 function openEditDialog(user: AdminUser) {
   editingUser.value = user
   form.username = user.username
+  form.departmentId = user.departmentId
   form.displayName = user.displayName
   form.password = ''
   form.roleIds = roles.value.filter((role) => user.roles.includes(role.code)).map((role) => role.id)
@@ -208,6 +234,7 @@ async function submitUser() {
   try {
     if (editingUser.value) {
       await updateAdminUser(editingUser.value.id, {
+        departmentId: form.departmentId,
         displayName: form.displayName,
         password: form.password || undefined,
         roleIds: form.roleIds,
@@ -215,6 +242,7 @@ async function submitUser() {
       ElMessage.success('用户已更新')
     } else {
       await createAdminUser({
+        departmentId: form.departmentId,
         username: form.username,
         displayName: form.displayName,
         password: form.password,
@@ -233,5 +261,9 @@ async function toggleStatus(user: AdminUser) {
   await changeAdminUserStatus(user.id, user.status === 'ACTIVE' ? 'DISABLED' : 'ACTIVE')
   ElMessage.success('用户状态已更新')
   await loadUsers()
+}
+
+function roleName(code: string) {
+  return roles.value.find((role) => role.code === code)?.name || code
 }
 </script>

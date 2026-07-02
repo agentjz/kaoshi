@@ -8,6 +8,8 @@ import com.kaoshi.exam.domain.Exam;
 import com.kaoshi.exam.dto.AnswerSubmitItem;
 import com.kaoshi.exam.dto.ExamQuestionOptionResponse;
 import com.kaoshi.exam.dto.ExamQuestionResponse;
+import com.kaoshi.exam.dto.ExamResultDetailResponse;
+import com.kaoshi.exam.dto.ExamResultQuestionResponse;
 import com.kaoshi.exam.dto.ExamResponse;
 import com.kaoshi.exam.dto.ExamResultResponse;
 import com.kaoshi.exam.dto.ExamSaveRequest;
@@ -56,6 +58,7 @@ public class ExamService {
         Exam exam = new Exam();
         fillExam(exam, request);
         examMapper.insertExam(exam);
+        replaceExamDepartments(exam.getId(), request.departmentIds());
         return detail(exam.getId());
     }
 
@@ -65,6 +68,7 @@ public class ExamService {
         Exam exam = findExam(id);
         fillExam(exam, request);
         examMapper.updateExam(exam);
+        replaceExamDepartments(id, request.departmentIds());
         return detail(id);
     }
 
@@ -72,17 +76,30 @@ public class ExamService {
         return examMapper.findPublishedExams().stream().map(this::toResponse).toList();
     }
 
+    public List<ExamResponse> publishedExams(Long userId) {
+        Long departmentId = examMapper.findUserDepartmentId(userId);
+        if (departmentId == null) {
+            return examMapper.findPublishedExams().stream()
+                    .filter(exam -> "PUBLIC".equals(exam.getOpenType()))
+                    .map(this::toResponse)
+                    .toList();
+        }
+        return examMapper.findPublishedExamsByDepartment(departmentId).stream().map(this::toResponse).toList();
+    }
+
     @Transactional
     public ExamSessionResponse startExam(Long examId, Long userId) {
         Exam exam = findExam(examId);
         ensureExamAvailable(exam);
-        Map<String, Object> attempt = examMapper.findAttempt(examId, userId);
+        ensureExamOpenToUser(exam, userId);
+        Map<String, Object> attempt = examMapper.findInProgressAttempt(examId, userId);
         if (attempt == null) {
+            ensureAttemptLimit(exam, userId);
             attempt = new HashMap<>();
             attempt.put("examId", examId);
             attempt.put("userId", userId);
             examMapper.insertAttempt(attempt);
-            attempt = examMapper.findAttempt(examId, userId);
+            attempt = examMapper.findInProgressAttempt(examId, userId);
         }
         return sessionResponse(exam, attempt);
     }
@@ -91,7 +108,8 @@ public class ExamService {
     public ExamResultResponse submit(Long examId, Long userId, ExamSubmitRequest request) {
         Exam exam = findExam(examId);
         ensureExamAvailable(exam);
-        Map<String, Object> attempt = examMapper.findAttempt(examId, userId);
+        ensureExamOpenToUser(exam, userId);
+        Map<String, Object> attempt = examMapper.findInProgressAttempt(examId, userId);
         if (attempt == null) {
             throw new BusinessException(ErrorCode.CONFLICT, "考试尚未开始");
         }
@@ -163,12 +181,32 @@ public class ExamService {
         return examMapper.findResultsByUser(userId).stream().map(this::toResultResponse).toList();
     }
 
+    public ExamResultDetailResponse adminResultDetail(Long resultId) {
+        return toResultDetailResponse(findResult(resultId));
+    }
+
+    public ExamResultDetailResponse userResultDetail(Long resultId, Long userId) {
+        Map<String, Object> result = findResult(resultId);
+        if (!userId.equals(longValue(value(result, "userId")))) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, "成绩不存在");
+        }
+        return toResultDetailResponse(result);
+    }
+
     private Exam findExam(Long id) {
         Exam exam = examMapper.findExamById(id);
         if (exam == null) {
             throw new BusinessException(ErrorCode.NOT_FOUND, "考试不存在");
         }
         return exam;
+    }
+
+    private Map<String, Object> findResult(Long resultId) {
+        Map<String, Object> result = examMapper.findResultById(resultId);
+        if (result == null) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, "成绩不存在");
+        }
+        return result;
     }
 
     private void validateExam(ExamSaveRequest request) {
@@ -178,8 +216,27 @@ public class ExamService {
         if (!List.of("DRAFT", "PUBLISHED", "CLOSED").contains(request.status())) {
             throw new BusinessException(ErrorCode.VALIDATION_FAILED, "考试状态不合法");
         }
-        if (!request.endTime().isAfter(request.startTime())) {
+        if (!List.of("PUBLIC", "DEPARTMENT").contains(request.openType())) {
+            throw new BusinessException(ErrorCode.VALIDATION_FAILED, "开放范围不合法");
+        }
+        if (!List.of("PAGED", "ALL").contains(request.displayMode())) {
+            throw new BusinessException(ErrorCode.VALIDATION_FAILED, "题目展示方式不合法");
+        }
+        BigDecimal totalScore = examMapper.findPaperTotalScore(request.paperId());
+        if (request.qualifyScore().compareTo(totalScore) > 0) {
+            throw new BusinessException(ErrorCode.VALIDATION_FAILED, "及格分不能超过试卷总分");
+        }
+        if (Boolean.TRUE.equals(request.timeLimit()) && !request.endTime().isAfter(request.startTime())) {
             throw new BusinessException(ErrorCode.VALIDATION_FAILED, "考试结束时间必须晚于开始时间");
+        }
+        List<Long> departmentIds = request.departmentIds() == null ? List.of() : request.departmentIds().stream().distinct().toList();
+        if ("DEPARTMENT".equals(request.openType()) && departmentIds.isEmpty()) {
+            throw new BusinessException(ErrorCode.VALIDATION_FAILED, "部门开放必须选择部门");
+        }
+        for (Long departmentId : departmentIds) {
+            if (examMapper.countActiveDepartmentById(departmentId) == 0) {
+                throw new BusinessException(ErrorCode.VALIDATION_FAILED, "部门不存在或未启用");
+            }
         }
     }
 
@@ -187,10 +244,25 @@ public class ExamService {
         exam.setPaperId(request.paperId());
         exam.setTitle(request.title());
         exam.setDescription(request.description());
+        exam.setQualifyScore(request.qualifyScore());
         exam.setStartTime(request.startTime());
         exam.setEndTime(request.endTime());
         exam.setDurationMinutes(request.durationMinutes());
+        exam.setTimeLimit(request.timeLimit());
+        exam.setAttemptLimit(request.attemptLimit());
+        exam.setDisplayMode(request.displayMode());
+        exam.setOpenType(request.openType());
         exam.setStatus(request.status());
+    }
+
+    private void replaceExamDepartments(Long examId, List<Long> departmentIds) {
+        examMapper.deleteExamDepartments(examId);
+        if (departmentIds == null) {
+            return;
+        }
+        departmentIds.stream()
+                .distinct()
+                .forEach(departmentId -> examMapper.insertExamDepartment(examId, departmentId));
     }
 
     private void ensureExamAvailable(Exam exam) {
@@ -198,8 +270,28 @@ public class ExamService {
         if (!"PUBLISHED".equals(exam.getStatus())) {
             throw new BusinessException(ErrorCode.CONFLICT, "考试未发布");
         }
-        if (now.isBefore(exam.getStartTime()) || now.isAfter(exam.getEndTime())) {
+        if (Boolean.TRUE.equals(exam.getTimeLimit()) && (now.isBefore(exam.getStartTime()) || now.isAfter(exam.getEndTime()))) {
             throw new BusinessException(ErrorCode.CONFLICT, "不在考试时间内");
+        }
+    }
+
+    private void ensureExamOpenToUser(Exam exam, Long userId) {
+        if ("PUBLIC".equals(exam.getOpenType())) {
+            return;
+        }
+        Long departmentId = examMapper.findUserDepartmentId(userId);
+        if (departmentId == null || !examMapper.findExamDepartmentIds(exam.getId()).contains(departmentId)) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "没有该考试权限");
+        }
+    }
+
+    private void ensureAttemptLimit(Exam exam, Long userId) {
+        if (exam.getAttemptLimit() == null) {
+            return;
+        }
+        int submittedCount = examMapper.countSubmittedAttempts(exam.getId(), userId);
+        if (submittedCount >= exam.getAttemptLimit()) {
+            throw new BusinessException(ErrorCode.CONFLICT, "已达到本场考试可考次数");
         }
     }
 
@@ -209,6 +301,7 @@ public class ExamService {
                 longValue(value(attempt, "id")),
                 exam.getTitle(),
                 exam.getDurationMinutes(),
+                exam.getDisplayMode(),
                 dateTimeValue(value(attempt, "startedAt")),
                 stringValue(value(attempt, "status")),
                 examMapper.findExamQuestions(exam.getId()).stream()
@@ -254,11 +347,18 @@ public class ExamService {
                 exam.getId(),
                 exam.getPaperId(),
                 examMapper.findPaperName(exam.getPaperId()),
+                examMapper.findPaperTotalScore(exam.getPaperId()),
                 exam.getTitle(),
                 exam.getDescription(),
+                exam.getQualifyScore(),
                 exam.getStartTime(),
                 exam.getEndTime(),
                 exam.getDurationMinutes(),
+                exam.getTimeLimit(),
+                exam.getAttemptLimit(),
+                exam.getDisplayMode(),
+                exam.getOpenType(),
+                examMapper.findExamDepartmentIds(exam.getId()),
                 exam.getStatus()
         );
     }
@@ -278,6 +378,43 @@ public class ExamService {
         );
     }
 
+    private ExamResultDetailResponse toResultDetailResponse(Map<String, Object> row) {
+        Long attemptId = longValue(value(row, "attemptId"));
+        return new ExamResultDetailResponse(
+                longValue(value(row, "id")),
+                attemptId,
+                longValue(value(row, "examId")),
+                stringValue(value(row, "examTitle")),
+                longValue(value(row, "userId")),
+                decimalValue(value(row, "totalScore")),
+                decimalValue(value(row, "obtainedScore")),
+                intValue(value(row, "correctCount")),
+                intValue(value(row, "questionCount")),
+                dateTimeValue(value(row, "submittedAt")),
+                examMapper.findResultQuestions(attemptId).stream()
+                        .map(this::toResultQuestionResponse)
+                        .toList()
+        );
+    }
+
+    private ExamResultQuestionResponse toResultQuestionResponse(Map<String, Object> row) {
+        Long questionId = longValue(value(row, "questionId"));
+        return new ExamResultQuestionResponse(
+                questionId,
+                stringValue(value(row, "type")),
+                stringValue(value(row, "stem")),
+                stringValue(value(row, "analysis")),
+                decimalValue(value(row, "score")),
+                decimalValue(value(row, "obtainedScore")),
+                intValue(value(row, "sortOrder")),
+                splitLabels(stringValue(value(row, "selectedLabels"))),
+                normalizedLabels(examMapper.findCorrectLabels(questionId)),
+                booleanValue(value(row, "correct")),
+                examMapper.findQuestionAttachments(questionId).stream().map(this::toAttachmentResponse).toList(),
+                examMapper.findQuestionOptions(questionId).stream().map(this::toOptionResponse).toList()
+        );
+    }
+
     private List<String> normalizedLabels(List<String> labels) {
         return labels.stream()
                 .map(String::trim)
@@ -286,6 +423,13 @@ public class ExamService {
                 .distinct()
                 .sorted()
                 .toList();
+    }
+
+    private List<String> splitLabels(String labels) {
+        if (labels == null || labels.isBlank()) {
+            return List.of();
+        }
+        return normalizedLabels(List.of(labels.split(",")));
     }
 
     private Long longValue(Object value) {
@@ -324,6 +468,16 @@ public class ExamService {
 
     private String stringValue(Object value) {
         return value == null ? null : value.toString();
+    }
+
+    private Boolean booleanValue(Object value) {
+        if (value instanceof Boolean bool) {
+            return bool;
+        }
+        if (value instanceof Number number) {
+            return number.intValue() != 0;
+        }
+        return Boolean.parseBoolean(value.toString());
     }
 
     private LocalDateTime dateTimeValue(Object value) {

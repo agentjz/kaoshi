@@ -2,6 +2,8 @@ package com.kaoshi.question;
 
 import com.kaoshi.common.api.ErrorCode;
 import com.kaoshi.common.exception.BusinessException;
+import com.kaoshi.common.excel.ExcelImportResult;
+import com.kaoshi.common.excel.ExcelWorkbooks;
 import com.kaoshi.common.page.PageRequest;
 import com.kaoshi.common.page.PageResponse;
 import com.kaoshi.question.domain.Question;
@@ -16,10 +18,19 @@ import com.kaoshi.question.dto.QuestionSaveRequest;
 import com.kaoshi.question.mapper.QuestionMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.multipart.MultipartFile;
+import org.apache.poi.ss.usermodel.Row;
+import org.apache.poi.ss.usermodel.Sheet;
+import org.apache.poi.ss.usermodel.Workbook;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 
+import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 public class QuestionService {
@@ -46,6 +57,44 @@ public class QuestionService {
         return toResponse(findQuestion(id));
     }
 
+    public ResponseEntity<byte[]> template() {
+        return ExcelWorkbooks.template(
+                "试题导入模板.xlsx",
+                "questions",
+                List.of("题库名称", "题型", "难度", "题干", "选项A", "选项B", "选项C", "选项D", "正确答案", "解析"),
+                List.of(
+                        List.of("英语基础题库", "单选", "简单", "选择正确的主谓一致句子。", "He go to school.", "He goes to school.", "He going to school.", "He gone to school.", "B", "第三人称单数主语后动词使用 goes。"),
+                        List.of("英语基础题库", "多选", "简单", "下列哪些单词是名词？", "book", "quickly", "teacher", "beautiful", "A,C", "book 和 teacher 是名词。"),
+                        List.of("英语基础题库", "单选", "困难", "“提高”的英文最贴近哪一项？", "practice", "improve", "listen", "repeat", "B", "improve 表示提高、改善。"),
+                        List.of("英语基础题库", "多选", "困难", "哪些行为有助于英语听力训练？", "每天听英文材料", "只背中文释义", "跟读音频", "完全不复习", "A,C", "持续听音频和跟读能训练听力输入与语音识别。")
+                )
+        );
+    }
+
+    @Transactional
+    public ExcelImportResult importExcel(MultipartFile file) {
+        List<String> errors = new ArrayList<>();
+        int success = 0;
+        try (Workbook workbook = new XSSFWorkbook(file.getInputStream())) {
+            Sheet sheet = workbook.getSheetAt(0);
+            for (int rowIndex = 1; rowIndex <= sheet.getLastRowNum(); rowIndex++) {
+                Row row = sheet.getRow(rowIndex);
+                if (row == null || ExcelWorkbooks.text(row, 3).isBlank()) {
+                    continue;
+                }
+                try {
+                    create(rowToRequest(row));
+                    success++;
+                } catch (RuntimeException exception) {
+                    errors.add("第 " + (rowIndex + 1) + " 行：" + exception.getMessage());
+                }
+            }
+        } catch (IOException exception) {
+            throw new BusinessException(ErrorCode.VALIDATION_FAILED, "读取 Excel 失败");
+        }
+        return new ExcelImportResult(success, errors.size(), errors);
+    }
+
     @Transactional
     public QuestionResponse create(QuestionSaveRequest request) {
         validateQuestion(request);
@@ -55,6 +104,74 @@ public class QuestionService {
         replaceOptions(question.getId(), request.options());
         replaceAttachments(question.getId(), request.attachments());
         return detail(question.getId());
+    }
+
+    private QuestionSaveRequest rowToRequest(Row row) {
+        String bankName = ExcelWorkbooks.text(row, 0).trim();
+        Long bankId = questionMapper.findBankIdByName(bankName);
+        if (bankId == null) {
+            throw new BusinessException(ErrorCode.VALIDATION_FAILED, "题库不存在：" + bankName);
+        }
+        String type = normalizeType(ExcelWorkbooks.text(row, 1).trim());
+        String difficulty = normalizeDifficulty(ExcelWorkbooks.text(row, 2).trim());
+        String stem = ExcelWorkbooks.text(row, 3).trim();
+        List<QuestionOptionRequest> options = new ArrayList<>();
+        for (int index = 0; index < 4; index++) {
+            String label = String.valueOf((char) ('A' + index));
+            String content = ExcelWorkbooks.text(row, 4 + index).trim();
+            if (!content.isBlank()) {
+                options.add(new QuestionOptionRequest(label, content, false));
+            }
+        }
+        Set<String> correctLabels = parseCorrectLabels(ExcelWorkbooks.text(row, 8));
+        options = options.stream()
+                .map(option -> new QuestionOptionRequest(option.label(), option.content(), correctLabels.contains(option.label())))
+                .toList();
+        return new QuestionSaveRequest(
+                bankId,
+                type,
+                stem,
+                ExcelWorkbooks.text(row, 9).trim(),
+                difficulty,
+                "ACTIVE",
+                options,
+                List.of()
+        );
+    }
+
+    private String normalizeType(String value) {
+        if ("单选".equals(value) || "单选题".equals(value) || SINGLE_CHOICE.equals(value)) {
+            return SINGLE_CHOICE;
+        }
+        if ("多选".equals(value) || "多选题".equals(value) || MULTIPLE_CHOICE.equals(value)) {
+            return MULTIPLE_CHOICE;
+        }
+        throw new BusinessException(ErrorCode.VALIDATION_FAILED, "试题类型不支持：" + value);
+    }
+
+    private String normalizeDifficulty(String value) {
+        if (value.isBlank() || "简单".equals(value)) {
+            return "EASY";
+        }
+        if ("困难".equals(value)) {
+            return "HARD";
+        }
+        if (List.of("EASY", "HARD").contains(value)) {
+            return value;
+        }
+        throw new BusinessException(ErrorCode.VALIDATION_FAILED, "试题难度不合法：" + value);
+    }
+
+    private Set<String> parseCorrectLabels(String value) {
+        Set<String> labels = value.toUpperCase().replace("，", ",").lines()
+                .flatMap(line -> List.of(line.split(",")).stream())
+                .map(String::trim)
+                .filter(label -> !label.isBlank())
+                .collect(Collectors.toSet());
+        if (labels.isEmpty()) {
+            throw new BusinessException(ErrorCode.VALIDATION_FAILED, "正确答案不能为空");
+        }
+        return labels;
     }
 
     @Transactional
@@ -83,7 +200,7 @@ public class QuestionService {
         if (!List.of(SINGLE_CHOICE, MULTIPLE_CHOICE).contains(request.type())) {
             throw new BusinessException(ErrorCode.VALIDATION_FAILED, "试题类型不支持");
         }
-        if (!List.of("EASY", "MEDIUM", "HARD").contains(request.difficulty())) {
+        if (!List.of("EASY", "HARD").contains(request.difficulty())) {
             throw new BusinessException(ErrorCode.VALIDATION_FAILED, "试题难度不合法");
         }
         if (!List.of("ACTIVE", "DISABLED").contains(request.status())) {
@@ -112,7 +229,6 @@ public class QuestionService {
         question.setType(request.type());
         question.setStem(request.stem());
         question.setAnalysis(request.analysis());
-        question.setScore(request.score());
         question.setDifficulty(request.difficulty());
         question.setStatus(request.status());
     }
@@ -152,7 +268,6 @@ public class QuestionService {
                 question.getType(),
                 question.getStem(),
                 question.getAnalysis(),
-                question.getScore(),
                 question.getDifficulty(),
                 question.getStatus(),
                 questionMapper.findOptions(question.getId()).stream()

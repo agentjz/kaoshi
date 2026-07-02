@@ -22,10 +22,9 @@ CREATE_NEW_CONSOLE = 0x00000010
 def main() -> int:
     configure_console()
     parser = argparse.ArgumentParser(
-        description="启动 kaoshi 本地开发环境。默认只启动；加 --reset 会清空 Docker 数据库后启动。"
+        description="清空并启动 kaoshi 本地开发环境。默认重建 Docker 数据库后启动。"
     )
-    parser.add_argument("--reset", action="store_true", help="先清空 Docker MySQL/Redis 数据，再启动")
-    args = parser.parse_args()
+    parser.parse_args()
 
     print_step("kaoshi 本地启动器")
     print("这个脚本会帮你启动 Docker 数据库、Java 后端、Vue 前端，然后打开浏览器。")
@@ -34,16 +33,11 @@ def main() -> int:
     print("登录账号：admin")
     print("登录密码：password")
 
-    if args.reset:
-        print_step("清空启动模式")
-        print("会先停止本项目所有本地服务，再清空 Docker 里的 kaoshi 数据。")
-        run_powershell_script(SCRIPTS / "stop-dev.ps1")
-        run_powershell_script(SCRIPTS / "reset-docker-data.ps1")
-    else:
-        print_step("普通启动模式")
-        print("不会清空数据库。会先停止本项目旧服务，再重新打开新的运行窗口。")
-        run_powershell_script(SCRIPTS / "stop-dev.ps1")
-        run_powershell_script(SCRIPTS / "dev.ps1")
+    print_step("清空重建")
+    print("会先停止本项目所有本地服务，再清空 Docker 里的 kaoshi 数据。")
+    run_powershell_script(SCRIPTS / "stop-dev.ps1")
+    run_powershell_script(SCRIPTS / "reset-docker-data.ps1")
+    run_powershell_script(SCRIPTS / "dev.ps1")
 
     print_step("启动 Java 后端")
     print("会打开一个新的 PowerShell 窗口。那个窗口不要关，它就是后端服务。")
@@ -179,7 +173,7 @@ if __name__ == "__main__":
         print("你可以按下面顺序排查：", file=sys.stderr)
         print("1. 确认 Docker Desktop 已经打开。", file=sys.stderr)
         print("2. 确认没有手动关闭新打开的 backend/frontend 窗口。", file=sys.stderr)
-        print("3. 如果想恢复初始数据，运行：python .\\start_dev.py --reset", file=sys.stderr)
+        print("3. 重新运行：python .\\start_dev.py 会再次清空并重建本地数据。", file=sys.stderr)
         print("4. 如果仍失败，把当前终端和新窗口里的报错发给 Codex。", file=sys.stderr)
         raise SystemExit(1)
 

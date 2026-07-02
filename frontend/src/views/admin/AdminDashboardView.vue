@@ -1,25 +1,46 @@
 <template>
   <div class="dashboard">
-    <section class="hero">
+    <section class="dashboard-hero">
       <div>
-        <p class="eyebrow">管理工作台</p>
-        <h1>考试管理平台底座</h1>
-        <p>这里汇总身份、权限、题库、试卷、考试和成绩等管理能力的入口状态。</p>
+        <p class="eyebrow">控制台</p>
+        <h1>考试管理工作台</h1>
       </div>
-      <el-tag effect="dark" type="success">已登录</el-tag>
+      <el-tag effect="plain" type="success">已登录</el-tag>
+    </section>
+
+    <section class="dashboard-grid">
+      <article v-for="module in modules" :key="module.title" class="dashboard-module">
+        <div class="dashboard-module__head">
+          <component :is="module.icon" />
+          <h2>{{ module.title }}</h2>
+        </div>
+        <p>{{ module.summary }}</p>
+        <div class="dashboard-actions">
+          <el-button v-for="action in module.actions" :key="action.path" text type="primary" @click="router.push(action.path)">
+            {{ action.label }}
+          </el-button>
+        </div>
+      </article>
+    </section>
+
+    <section class="workflow-panel">
+      <h2>常用工作流</h2>
+      <ol>
+        <li v-for="item in workflows" :key="item">{{ item }}</li>
+      </ol>
     </section>
 
     <section class="metric-grid">
       <article class="metric">
-        <span>用户</span>
+        <span>当前用户</span>
         <strong>{{ auth.user?.displayName }}</strong>
       </article>
       <article class="metric">
-        <span>角色</span>
+        <span>当前角色</span>
         <strong>{{ auth.user?.roles.join(', ') }}</strong>
       </article>
       <article class="metric">
-        <span>权限</span>
+        <span>可用权限</span>
         <strong>{{ auth.permissions.length }}</strong>
       </article>
     </section>
@@ -27,7 +48,49 @@
 </template>
 
 <script setup lang="ts">
+import { Collection, EditPen, Setting } from '@element-plus/icons-vue'
+import { useRouter } from 'vue-router'
+
 import { useAuthStore } from '@/stores/auth'
 
 const auth = useAuthStore()
+const router = useRouter()
+
+const modules = [
+  {
+    title: '在线考试',
+    summary: '考生从这里查看可参加考试、进入准备页、开始作答并查看自己的成绩。',
+    icon: EditPen,
+    actions: [
+      { label: '考试中心', path: '/my/exam' },
+      { label: '我的成绩', path: '/my/exam/records' },
+    ],
+  },
+  {
+    title: '考试管理',
+    summary: '考务人员按题库、试题、考试三步维护考试内容并发布考试。',
+    icon: Collection,
+    actions: [
+      { label: '题库管理', path: '/exam/repo' },
+      { label: '试题管理', path: '/exam/qu' },
+      { label: '考试管理', path: '/exam/manage' },
+    ],
+  },
+  {
+    title: '系统管理',
+    summary: '管理员维护部门、用户和角色权限，让人员和考试开放范围保持一致。',
+    icon: Setting,
+    actions: [
+      { label: '用户管理', path: '/sys/users' },
+      { label: '角色管理', path: '/sys/roles' },
+      { label: '部门管理', path: '/sys/departments' },
+    ],
+  },
+]
+
+const workflows = [
+  '先在系统管理维护部门、用户和角色。',
+  '再在考试管理维护题库和试题，富媒体附件在试题编辑页上传或填写 URL。',
+  '最后在考试管理按题库规则组卷，配置考试时长、可考次数、题目显示方式和开放范围。',
+]
 </script>

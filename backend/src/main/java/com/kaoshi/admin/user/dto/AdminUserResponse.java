@@ -5,6 +5,8 @@ import java.util.List;
 
 public record AdminUserResponse(
         Long id,
+        Long departmentId,
+        String departmentName,
         String username,
         String displayName,
         String status,

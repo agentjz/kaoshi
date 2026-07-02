@@ -3,7 +3,6 @@
     <header class="admin-page__header">
       <div>
         <h1>角色管理</h1>
-        <p>维护角色编码、权限集合和可见菜单。</p>
       </div>
       <el-button type="primary" :icon="Plus" @click="openCreateDialog">新建角色</el-button>
     </header>
@@ -13,11 +12,10 @@
         <template #default="{ row }: { row: AdminRole }">
           <div class="entity-stack">
             <span class="entity-name">{{ row.name }}</span>
-            <span class="code-text">{{ row.code }}</span>
+            <span class="muted-text">{{ row.description || '无说明' }}</span>
           </div>
         </template>
       </el-table-column>
-      <el-table-column prop="description" label="说明" min-width="220" show-overflow-tooltip />
       <el-table-column label="权限" min-width="240">
         <template #default="{ row }: { row: AdminRole }">
           <div class="tag-stack">
@@ -70,9 +68,9 @@
           </div>
           <el-form-item prop="permissionIds" label-width="0">
             <el-checkbox-group v-model="form.permissionIds" class="check-grid">
-              <el-checkbox v-for="permission in permissions" :key="permission.id" :label="permission.id" border>
+              <el-checkbox v-for="permission in permissions" :key="permission.id" :value="permission.id" border>
                 <span class="check-title">{{ permission.name }}</span>
-                <span class="code-text">{{ permission.code }}</span>
+                <span class="muted-text">{{ permission.description || '无说明' }}</span>
               </el-checkbox>
             </el-checkbox-group>
           </el-form-item>
@@ -88,9 +86,8 @@
           </div>
           <el-form-item prop="menuIds" label-width="0">
             <el-checkbox-group v-model="form.menuIds" class="check-grid">
-              <el-checkbox v-for="menu in menus" :key="menu.id" :label="menu.id" border>
+              <el-checkbox v-for="menu in menus" :key="menu.id" :value="menu.id" border>
                 <span class="check-title">{{ menu.title }}</span>
-                <span class="code-text">{{ menu.path }}</span>
               </el-checkbox>
             </el-checkbox-group>
           </el-form-item>

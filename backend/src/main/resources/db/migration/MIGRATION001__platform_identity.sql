@@ -1,5 +1,21 @@
-﻿create table users (
+create table departments (
   id bigint primary key auto_increment,
+  parent_id bigint null,
+  name varchar(128) not null,
+  code varchar(64) not null,
+  description varchar(500) null,
+  status varchar(20) not null,
+  created_at datetime not null default current_timestamp,
+  updated_at datetime not null default current_timestamp on update current_timestamp,
+  constraint uk_departments_code unique (code),
+  constraint fk_departments_parent foreign key (parent_id) references departments (id),
+  index idx_departments_parent (parent_id),
+  index idx_departments_status (status)
+);
+
+create table users (
+  id bigint primary key auto_increment,
+  department_id bigint null,
   username varchar(64) not null,
   display_name varchar(64) not null,
   password_hash varchar(120) not null,
@@ -7,6 +23,7 @@
   created_at datetime not null default current_timestamp,
   updated_at datetime not null default current_timestamp on update current_timestamp,
   deleted_at datetime null,
+  constraint fk_users_department foreign key (department_id) references departments (id),
   constraint uk_users_username unique (username)
 );
 
@@ -71,8 +88,13 @@ create table login_audits (
   index idx_login_audits_username (username)
 );
 
-insert into users (id, username, display_name, password_hash, status)
-values (1, 'admin', '系统管理员', '$2a$10$KSY7KAawfe6xK/gp4bXt2erxEFQe0w4kSVfgM1/ZVJobedbZrQZq6', 'ACTIVE');
+insert into departments (id, parent_id, name, code, description, status)
+values
+  (1, null, '默认组织', 'DEFAULT', '系统初始化部门', 'ACTIVE'),
+  (2, 1, '考试中心', 'EXAM_CENTER', '负责考试组织与题库维护', 'ACTIVE');
+
+insert into users (id, department_id, username, display_name, password_hash, status)
+values (1, 1, 'admin', '系统管理员', '$2a$10$KSY7KAawfe6xK/gp4bXt2erxEFQe0w4kSVfgM1/ZVJobedbZrQZq6', 'ACTIVE');
 
 insert into roles (id, code, name, description)
 values
@@ -84,7 +106,7 @@ insert into permissions (id, code, name, description)
 values
   (1, 'system:admin', '系统管理', '访问系统管理能力'),
   (2, 'exam:manage', '考试管理', '维护考试发布和考务任务'),
-  (3, 'paper:manage', '试卷管理', '维护试卷和组卷'),
+  (3, 'paper:manage', '内部组卷', '维护考试创建时的内部组卷结果'),
   (4, 'question:manage', '题库管理', '维护题库和试题'),
   (5, 'exam:take', '参加考试', '进入考试端作答'),
   (6, 'result:view', '成绩查看', '查看成绩和作答结果');
@@ -96,4 +118,3 @@ select 1, id from permissions;
 
 insert into system_configs (config_key, config_value, description)
 values ('platform.name', 'kaoshi', '平台名称');
-

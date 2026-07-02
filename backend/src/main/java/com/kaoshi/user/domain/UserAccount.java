@@ -10,6 +10,7 @@ import java.time.LocalDateTime;
 public class UserAccount {
     @TableId(type = IdType.AUTO)
     private Long id;
+    private Long departmentId;
     private String username;
     private String displayName;
     private String passwordHash;
@@ -23,6 +24,14 @@ public class UserAccount {
 
     public void setId(Long id) {
         this.id = id;
+    }
+
+    public Long getDepartmentId() {
+        return departmentId;
+    }
+
+    public void setDepartmentId(Long departmentId) {
+        this.departmentId = departmentId;
     }
 
     public String getUsername() {

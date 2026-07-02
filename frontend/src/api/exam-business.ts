@@ -1,6 +1,6 @@
 import { apiClient } from './client'
 import type { ApiResponse } from './types'
-import type { PageResult } from './admin'
+import type { ExcelImportResult, PageResult } from './admin'
 
 export interface NamedCategory {
   id: number
@@ -42,7 +42,7 @@ export interface QuestionOption {
 export interface QuestionAttachmentPayload {
   fileName: string
   fileUrl: string
-  mediaType: string
+  mediaType: 'IMAGE' | 'AUDIO' | 'VIDEO' | 'FILE'
 }
 
 export interface QuestionAttachment extends QuestionAttachmentPayload {
@@ -55,8 +55,7 @@ export interface QuestionPayload {
   type: 'SINGLE_CHOICE' | 'MULTIPLE_CHOICE'
   stem: string
   analysis: string
-  score: number
-  difficulty: 'EASY' | 'MEDIUM' | 'HARD'
+  difficulty: 'EASY' | 'HARD'
   status: 'ACTIVE' | 'DISABLED'
   options: QuestionOptionPayload[]
   attachments: QuestionAttachmentPayload[]
@@ -69,7 +68,6 @@ export interface Question {
   type: QuestionPayload['type']
   stem: string
   analysis: string | null
-  score: number
   difficulty: QuestionPayload['difficulty']
   status: QuestionPayload['status']
   options: QuestionOption[]
@@ -115,9 +113,15 @@ export interface ExamPayload {
   paperId: number
   title: string
   description: string
+  qualifyScore: number
   startTime: string
   endTime: string
   durationMinutes: number
+  timeLimit: boolean
+  attemptLimit: number | null
+  displayMode: 'PAGED' | 'ALL'
+  openType: 'PUBLIC' | 'DEPARTMENT'
+  departmentIds: number[]
   status: 'DRAFT' | 'PUBLISHED' | 'CLOSED'
 }
 
@@ -125,11 +129,18 @@ export interface Exam {
   id: number
   paperId: number
   paperName: string
+  totalScore: number
   title: string
   description: string | null
+  qualifyScore: number
   startTime: string
   endTime: string
   durationMinutes: number
+  timeLimit: boolean
+  attemptLimit: number | null
+  displayMode: ExamPayload['displayMode']
+  openType: ExamPayload['openType']
+  departmentIds: number[]
   status: ExamPayload['status']
 }
 
@@ -155,6 +166,7 @@ export interface ExamSession {
   attemptId: number
   title: string
   durationMinutes: number
+  displayMode: ExamPayload['displayMode']
   startedAt: string
   attemptStatus: 'IN_PROGRESS' | 'SUBMITTED'
   questions: ExamQuestion[]
@@ -171,6 +183,25 @@ export interface ExamResult {
   correctCount: number
   questionCount: number
   submittedAt: string
+}
+
+export interface ExamResultQuestion {
+  questionId: number
+  type: QuestionPayload['type']
+  stem: string
+  analysis: string | null
+  score: number
+  obtainedScore: number
+  sortOrder: number
+  selectedLabels: string[]
+  correctLabels: string[]
+  correct: boolean
+  attachments: QuestionAttachment[]
+  options: ExamQuestionOption[]
+}
+
+export interface ExamResultDetail extends ExamResult {
+  questions: ExamResultQuestion[]
 }
 
 export async function fetchQuestionCategories(): Promise<NamedCategory[]> {
@@ -198,6 +229,11 @@ export async function fetchQuestions(params: { page: number; size: number; keywo
   return response.data.data
 }
 
+export async function fetchQuestionDetail(id: number): Promise<Question> {
+  const response = await apiClient.get<ApiResponse<Question>>(`/api/admin/questions/${id}`)
+  return response.data.data
+}
+
 export async function createQuestion(payload: QuestionPayload): Promise<Question> {
   const response = await apiClient.post<ApiResponse<Question>>('/api/admin/questions', payload)
   return response.data.data
@@ -205,6 +241,25 @@ export async function createQuestion(payload: QuestionPayload): Promise<Question
 
 export async function updateQuestion(id: number, payload: QuestionPayload): Promise<Question> {
   const response = await apiClient.put<ApiResponse<Question>>(`/api/admin/questions/${id}`, payload)
+  return response.data.data
+}
+
+export async function downloadQuestionImportTemplate(): Promise<Blob> {
+  const response = await apiClient.get('/api/admin/questions/import-template', { responseType: 'blob' })
+  return response.data
+}
+
+export async function importQuestions(file: File): Promise<ExcelImportResult> {
+  const form = new FormData()
+  form.append('file', file)
+  const response = await apiClient.post<ApiResponse<ExcelImportResult>>('/api/admin/questions/import', form)
+  return response.data.data
+}
+
+export async function uploadFile(file: File): Promise<QuestionAttachmentPayload> {
+  const form = new FormData()
+  form.append('file', file)
+  const response = await apiClient.post<ApiResponse<QuestionAttachmentPayload>>('/api/admin/files', form)
   return response.data.data
 }
 
@@ -248,6 +303,11 @@ export async function fetchAdminResults(): Promise<ExamResult[]> {
   return response.data.data
 }
 
+export async function fetchAdminResultDetail(resultId: number): Promise<ExamResultDetail> {
+  const response = await apiClient.get<ApiResponse<ExamResultDetail>>(`/api/admin/results/${resultId}`)
+  return response.data.data
+}
+
 export async function fetchExamTasks(): Promise<Exam[]> {
   const response = await apiClient.get<ApiResponse<Exam[]>>('/api/exam/tasks')
   return response.data.data
@@ -265,5 +325,10 @@ export async function submitExam(examId: number, answers: Array<{ questionId: nu
 
 export async function fetchMyExamResults(): Promise<ExamResult[]> {
   const response = await apiClient.get<ApiResponse<ExamResult[]>>('/api/exam/results')
+  return response.data.data
+}
+
+export async function fetchMyExamResultDetail(resultId: number): Promise<ExamResultDetail> {
+  const response = await apiClient.get<ApiResponse<ExamResultDetail>>(`/api/exam/results/${resultId}`)
   return response.data.data
 }

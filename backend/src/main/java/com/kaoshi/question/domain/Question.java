@@ -4,8 +4,6 @@ import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 
-import java.math.BigDecimal;
-
 @TableName("questions")
 public class Question {
     @TableId(type = IdType.AUTO)
@@ -14,7 +12,6 @@ public class Question {
     private String type;
     private String stem;
     private String analysis;
-    private BigDecimal score;
     private String difficulty;
     private String status;
 
@@ -56,14 +53,6 @@ public class Question {
 
     public void setAnalysis(String analysis) {
         this.analysis = analysis;
-    }
-
-    public BigDecimal getScore() {
-        return score;
-    }
-
-    public void setScore(BigDecimal score) {
-        this.score = score;
     }
 
     public String getDifficulty() {

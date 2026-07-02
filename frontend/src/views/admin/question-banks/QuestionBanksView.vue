@@ -3,7 +3,6 @@
     <header class="admin-page__header">
       <div>
         <h1>题库管理</h1>
-        <p>维护试题分类下的题库容器。</p>
       </div>
       <el-button type="primary" :icon="Plus" @click="openCreateDialog">新建题库</el-button>
     </header>

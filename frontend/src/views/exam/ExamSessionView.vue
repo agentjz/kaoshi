@@ -1,30 +1,5 @@
 <template>
   <section class="exam-session" v-loading="loading">
-    <template v-if="exam && !session">
-      <header class="admin-page__header">
-        <div>
-          <h1>{{ exam.title }}</h1>
-          <p>{{ exam.paperName }}</p>
-        </div>
-        <el-button type="primary" :loading="starting" @click="beginExam">开始考试</el-button>
-      </header>
-
-      <section class="exam-ready">
-        <article class="metric">
-          <span>限时</span>
-          <strong>{{ exam.durationMinutes }} 分钟</strong>
-        </article>
-        <article class="metric">
-          <span>开始时间</span>
-          <strong>{{ exam.startTime }}</strong>
-        </article>
-        <article class="metric">
-          <span>截止时间</span>
-          <strong>{{ exam.endTime }}</strong>
-        </article>
-      </section>
-    </template>
-
     <template v-if="session">
       <header class="exam-status">
         <div>
@@ -39,19 +14,17 @@
 
       <section class="exam-workspace">
         <main class="question-stack">
-          <article
-            v-for="(question, index) in session.questions"
-            :id="`question-${question.questionId}`"
-            :key="question.questionId"
-            class="question-panel"
-          >
+          <article v-if="session.displayMode === 'PAGED' && currentQuestion" :key="currentQuestion.questionId" class="question-panel">
             <div class="question-title">
-              <strong>{{ index + 1 }}. {{ question.stem }}</strong>
-              <el-tag>{{ question.score }} 分</el-tag>
+              <strong>{{ currentIndex + 1 }}. {{ currentQuestion.stem }}</strong>
+              <div class="question-title__meta">
+                <el-tag effect="plain">{{ questionTypeText(currentQuestion.type) }}</el-tag>
+                <el-tag>{{ currentQuestion.score }} 分</el-tag>
+              </div>
             </div>
 
-            <div v-if="question.attachments.length" class="question-media">
-              <template v-for="attachment in question.attachments" :key="attachment.id">
+            <div v-if="currentQuestion.attachments.length" class="question-media">
+              <template v-for="attachment in currentQuestion.attachments" :key="attachment.id">
                 <img
                   v-if="attachment.mediaType === 'IMAGE'"
                   :src="attachment.fileUrl"
@@ -64,26 +37,94 @@
             </div>
 
             <el-checkbox-group
-              v-if="question.type === 'MULTIPLE_CHOICE'"
-              v-model="multipleAnswers[question.questionId]"
+              v-if="currentQuestion.type === 'MULTIPLE_CHOICE'"
+              v-model="multipleAnswers[currentQuestion.questionId]"
               class="answer-options"
               :disabled="submitting || submitted"
             >
-              <el-checkbox v-for="option in question.options" :key="option.id" :label="option.label" border>
+              <el-checkbox v-for="option in currentQuestion.options" :key="option.id" :value="option.label" border>
                 {{ option.label }}. {{ option.content }}
               </el-checkbox>
             </el-checkbox-group>
             <el-radio-group
               v-else
-              v-model="singleAnswers[question.questionId]"
+              v-model="singleAnswers[currentQuestion.questionId]"
               class="answer-options"
               :disabled="submitting || submitted"
             >
-              <el-radio v-for="option in question.options" :key="option.id" :label="option.label" border>
+              <el-radio v-for="option in currentQuestion.options" :key="option.id" :value="option.label" border>
                 {{ option.label }}. {{ option.content }}
               </el-radio>
             </el-radio-group>
+
+            <div class="question-nav">
+              <el-button :disabled="currentIndex === 0" @click="previousQuestion">上一题</el-button>
+              <el-button
+                v-if="currentIndex < session.questions.length - 1"
+                type="primary"
+                @click="nextQuestion"
+              >
+                下一题
+              </el-button>
+              <el-button v-else type="primary" :loading="submitting" :disabled="submitted" @click="confirmSubmit">
+                提交试卷
+              </el-button>
+            </div>
           </article>
+
+          <template v-else-if="session.displayMode === 'ALL'">
+            <article
+              v-for="(question, index) in session.questions"
+              :id="`question-${question.questionId}`"
+              :key="question.questionId"
+              class="question-panel"
+            >
+              <div class="question-title">
+                <strong>{{ index + 1 }}. {{ question.stem }}</strong>
+                <div class="question-title__meta">
+                  <el-tag effect="plain">{{ questionTypeText(question.type) }}</el-tag>
+                  <el-tag>{{ question.score }} 分</el-tag>
+                </div>
+              </div>
+
+              <div v-if="question.attachments.length" class="question-media">
+                <template v-for="attachment in question.attachments" :key="attachment.id">
+                  <img
+                    v-if="attachment.mediaType === 'IMAGE'"
+                    :src="attachment.fileUrl"
+                    :alt="attachment.fileName"
+                    class="question-media__image"
+                  />
+                  <audio v-else-if="attachment.mediaType === 'AUDIO'" :src="attachment.fileUrl" controls class="question-media__audio" />
+                  <el-link v-else :href="attachment.fileUrl" target="_blank">{{ attachment.fileName }}</el-link>
+                </template>
+              </div>
+
+              <el-checkbox-group
+                v-if="question.type === 'MULTIPLE_CHOICE'"
+                v-model="multipleAnswers[question.questionId]"
+                class="answer-options"
+                :disabled="submitting || submitted"
+              >
+                <el-checkbox v-for="option in question.options" :key="option.id" :value="option.label" border>
+                  {{ option.label }}. {{ option.content }}
+                </el-checkbox>
+              </el-checkbox-group>
+              <el-radio-group
+                v-else
+                v-model="singleAnswers[question.questionId]"
+                class="answer-options"
+                :disabled="submitting || submitted"
+              >
+                <el-radio v-for="option in question.options" :key="option.id" :value="option.label" border>
+                  {{ option.label }}. {{ option.content }}
+                </el-radio>
+              </el-radio-group>
+            </article>
+            <div class="question-submit-row">
+              <el-button type="primary" :loading="submitting" :disabled="submitted" @click="confirmSubmit">提交试卷</el-button>
+            </div>
+          </template>
         </main>
 
         <aside class="answer-card">
@@ -91,17 +132,23 @@
             <strong>答题卡</strong>
             <span>{{ unansweredCount }} 未答</span>
           </div>
-          <div class="answer-card__grid">
-            <button
-              v-for="(question, index) in session.questions"
-              :key="question.questionId"
-              class="answer-card__item"
-              :class="{ 'answer-card__item--answered': isAnswered(question) }"
-              type="button"
-              @click="scrollToQuestion(question.questionId)"
-            >
-              {{ index + 1 }}
-            </button>
+          <div v-for="group in groupedQuestions" :key="group.type" class="answer-card__section">
+            <p>{{ group.title }}</p>
+            <div class="answer-card__grid">
+              <button
+                v-for="question in group.questions"
+                :key="question.questionId"
+                class="answer-card__item"
+                :class="{
+                  'answer-card__item--answered': isAnswered(question),
+                  'answer-card__item--current': currentQuestion?.questionId === question.questionId,
+                }"
+                type="button"
+                @click="selectQuestion(question.questionId)"
+              >
+                {{ questionGlobalIndex(question.questionId) + 1 }}
+              </button>
+            </div>
           </div>
         </aside>
       </section>
@@ -110,39 +157,64 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 
-import { fetchExamTasks, startExam, submitExam, type Exam, type ExamQuestion, type ExamSession } from '@/api/exam-business'
+import { startExam, submitExam, type ExamQuestion, type ExamSession } from '@/api/exam-business'
+import {
+  buildSubmitAnswers,
+  countAnsweredQuestions,
+  formatRemainingTime,
+  isQuestionAnswered,
+  type MultipleAnswerMap,
+  type SingleAnswerMap,
+} from '@/utils/exam-session'
 
 const route = useRoute()
 const router = useRouter()
-const exam = ref<Exam | null>(null)
 const session = ref<ExamSession | null>(null)
 const loading = ref(false)
-const starting = ref(false)
 const submitting = ref(false)
 const submitted = ref(false)
 const remainingSeconds = ref(0)
+const currentIndex = ref(0)
 let countdownTimer: number | undefined
 
-const multipleAnswers = reactive<Record<number, string[]>>({})
-const singleAnswers = reactive<Record<number, string>>({})
+const multipleAnswers = reactive<MultipleAnswerMap>({})
+const singleAnswers = reactive<SingleAnswerMap>({})
 
-const remainingText = computed(() => {
-  const minutes = Math.floor(remainingSeconds.value / 60)
-  const seconds = remainingSeconds.value % 60
-  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
-})
-
-const answeredCount = computed(() => session.value?.questions.filter((question) => isAnswered(question)).length ?? 0)
+const remainingText = computed(() => formatRemainingTime(remainingSeconds.value))
+const currentQuestion = computed(() => session.value?.questions[currentIndex.value] ?? null)
+const answeredCount = computed(() => countAnsweredQuestions(session.value?.questions ?? [], singleAnswers, multipleAnswers))
 const unansweredCount = computed(() => Math.max(0, (session.value?.questions.length ?? 0) - answeredCount.value))
 const hasActiveAttempt = computed(() => Boolean(session.value && !submitted.value))
+const groupedQuestions = computed<QuestionGroup[]>(() => {
+  const questions = session.value?.questions ?? []
+  const groups: QuestionGroup[] = [
+    {
+      type: 'SINGLE_CHOICE',
+      title: '单选题',
+      questions: questions.filter((question) => question.type === 'SINGLE_CHOICE'),
+    },
+    {
+      type: 'MULTIPLE_CHOICE',
+      title: '多选题',
+      questions: questions.filter((question) => question.type === 'MULTIPLE_CHOICE'),
+    },
+  ]
+  return groups.filter((group) => group.questions.length > 0)
+})
+
+interface QuestionGroup {
+  type: ExamQuestion['type']
+  title: string
+  questions: ExamQuestion[]
+}
 
 onMounted(() => {
   window.addEventListener('beforeunload', preventUnload)
-  void loadExam()
+  void beginExam()
 })
 
 onBeforeUnmount(() => {
@@ -166,32 +238,20 @@ onBeforeRouteLeave(async () => {
   }
 })
 
-async function loadExam() {
+async function beginExam() {
   loading.value = true
   try {
     const examId = Number(route.params.examId)
-    const tasks = await fetchExamTasks()
-    exam.value = tasks.find((item) => item.id === examId) || null
-    if (!exam.value) {
-      ElMessage.error('考试不存在或未发布')
+    if (!Number.isFinite(examId)) {
+      ElMessage.error('考试不存在')
       await router.replace({ name: 'exam-home' })
+      return
     }
-  } finally {
-    loading.value = false
-  }
-}
-
-async function beginExam() {
-  if (!exam.value) {
-    return
-  }
-  starting.value = true
-  try {
-    session.value = await startExam(exam.value.id)
+    session.value = await startExam(examId)
     initializeAnswers(session.value)
     startCountdown(session.value)
   } finally {
-    starting.value = false
+    loading.value = false
   }
 }
 
@@ -227,14 +287,33 @@ function stopCountdown() {
 }
 
 function isAnswered(question: ExamQuestion) {
-  if (question.type === 'MULTIPLE_CHOICE') {
-    return (multipleAnswers[question.questionId] || []).length > 0
-  }
-  return Boolean(singleAnswers[question.questionId])
+  return isQuestionAnswered(question, singleAnswers, multipleAnswers)
 }
 
-function scrollToQuestion(questionId: number) {
-  document.getElementById(`question-${questionId}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+function questionGlobalIndex(questionId: number) {
+  return session.value?.questions.findIndex((question) => question.questionId === questionId) ?? -1
+}
+
+async function selectQuestion(questionId: number) {
+  const index = questionGlobalIndex(questionId)
+  if (index >= 0) {
+    currentIndex.value = index
+    if (session.value?.displayMode === 'ALL') {
+      await nextTick()
+      document.getElementById(`question-${questionId}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
+  }
+}
+
+function previousQuestion() {
+  currentIndex.value = Math.max(0, currentIndex.value - 1)
+}
+
+function nextQuestion() {
+  if (!session.value) {
+    return
+  }
+  currentIndex.value = Math.min(session.value.questions.length - 1, currentIndex.value + 1)
 }
 
 async function confirmSubmit() {
@@ -253,20 +332,12 @@ async function submit(autoSubmit: boolean) {
   }
   submitting.value = true
   try {
-    const payload = session.value.questions.map((question) => ({
-      questionId: question.questionId,
-      selectedLabels:
-        question.type === 'MULTIPLE_CHOICE'
-          ? multipleAnswers[question.questionId] || []
-          : singleAnswers[question.questionId]
-            ? [singleAnswers[question.questionId]]
-            : [],
-    }))
+    const payload = buildSubmitAnswers(session.value.questions, singleAnswers, multipleAnswers)
     const result = await submitExam(session.value.examId, payload)
     submitted.value = true
     stopCountdown()
     ElMessage.success(autoSubmit ? '考试时间已到，试卷已自动提交' : '试卷已提交')
-    await router.replace({ name: 'exam-result', params: { resultId: result.id }, query: { score: result.obtainedScore, total: result.totalScore } })
+    await router.replace({ name: 'exam-result', params: { resultId: result.id } })
   } finally {
     submitting.value = false
   }
@@ -278,6 +349,10 @@ function preventUnload(event: BeforeUnloadEvent) {
   }
   event.preventDefault()
   event.returnValue = ''
+}
+
+function questionTypeText(type: ExamQuestion['type']) {
+  return type === 'MULTIPLE_CHOICE' ? '多选题' : '单选题'
 }
 </script>
 
@@ -306,12 +381,6 @@ function preventUnload(event: BeforeUnloadEvent) {
 .exam-status p {
   margin: 6px 0 0;
   color: var(--ks-text-muted);
-}
-
-.exam-ready {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 16px;
 }
 
 .exam-workspace {
@@ -345,6 +414,14 @@ function preventUnload(event: BeforeUnloadEvent) {
   display: grid;
   gap: 12px;
   margin: 12px 0 16px;
+}
+
+.question-title__meta {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
 }
 
 .question-media__image {
@@ -381,6 +458,20 @@ function preventUnload(event: BeforeUnloadEvent) {
   overflow-wrap: anywhere;
 }
 
+.question-nav {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.question-submit-row {
+  display: flex;
+  justify-content: flex-end;
+  padding: 4px 0 16px;
+}
+
 .answer-card {
   position: sticky;
   top: 92px;
@@ -403,6 +494,18 @@ function preventUnload(event: BeforeUnloadEvent) {
 .answer-card__header span {
   color: var(--ks-text-muted);
   font-size: 13px;
+}
+
+.answer-card__section {
+  display: grid;
+  gap: 8px;
+}
+
+.answer-card__section p {
+  margin: 0;
+  color: var(--ks-text-muted);
+  font-size: 13px;
+  font-weight: 600;
 }
 
 .answer-card__grid {
@@ -429,6 +532,13 @@ function preventUnload(event: BeforeUnloadEvent) {
   color: #027a48;
 }
 
+.answer-card__item--current {
+  border-color: var(--ks-primary);
+  background: var(--ks-primary-soft);
+  color: var(--ks-primary);
+  font-weight: 700;
+}
+
 @media (max-width: 900px) {
   .exam-workspace {
     grid-template-columns: 1fr;
@@ -440,10 +550,6 @@ function preventUnload(event: BeforeUnloadEvent) {
 }
 
 @media (max-width: 760px) {
-  .exam-ready {
-    grid-template-columns: 1fr;
-  }
-
   .exam-status,
   .exam-actions {
     align-items: stretch;

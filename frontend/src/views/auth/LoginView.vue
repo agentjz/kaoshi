@@ -56,7 +56,7 @@ const rules: FormRules<typeof form> = {
 async function submit() {
   await formRef.value?.validate()
   await auth.login(form)
-  const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : '/admin'
+  const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : '/dashboard'
   await router.replace(redirect)
 }
 </script>

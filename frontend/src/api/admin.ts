@@ -10,6 +10,8 @@ export interface PageResult<T> {
 
 export interface AdminUser {
   id: number
+  departmentId: number | null
+  departmentName: string | null
   username: string
   displayName: string
   status: 'ACTIVE' | 'DISABLED'
@@ -19,6 +21,7 @@ export interface AdminUser {
 }
 
 export interface UserCreatePayload {
+  departmentId: number | null
   username: string
   displayName: string
   password: string
@@ -26,6 +29,7 @@ export interface UserCreatePayload {
 }
 
 export interface UserUpdatePayload {
+  departmentId: number | null
   displayName: string
   password?: string
   roleIds: number[]
@@ -63,6 +67,30 @@ export interface AdminMenu {
   parentId: number | null
   sortOrder: number
   icon: string | null
+}
+
+export interface ExcelImportResult {
+  successCount: number
+  failureCount: number
+  errors: string[]
+}
+
+export interface Department {
+  id: number
+  parentId: number | null
+  name: string
+  code: string
+  description: string | null
+  status: 'ACTIVE' | 'DISABLED'
+  children: Department[]
+}
+
+export interface DepartmentPayload {
+  parentId: number | null
+  name: string
+  code: string
+  description: string
+  status: Department['status']
 }
 
 export async function fetchAdminUsers(params: {
@@ -111,5 +139,36 @@ export async function fetchAdminPermissions(): Promise<AdminPermission[]> {
 
 export async function fetchAdminMenus(): Promise<AdminMenu[]> {
   const response = await apiClient.get<ApiResponse<AdminMenu[]>>('/api/admin/menus')
+  return response.data.data
+}
+
+export async function fetchDepartments(): Promise<Department[]> {
+  const response = await apiClient.get<ApiResponse<Department[]>>('/api/admin/departments')
+  return response.data.data
+}
+
+export async function createDepartment(payload: DepartmentPayload): Promise<Department> {
+  const response = await apiClient.post<ApiResponse<Department>>('/api/admin/departments', payload)
+  return response.data.data
+}
+
+export async function updateDepartment(id: number, payload: DepartmentPayload): Promise<Department> {
+  const response = await apiClient.put<ApiResponse<Department>>(`/api/admin/departments/${id}`, payload)
+  return response.data.data
+}
+
+export async function deleteDepartment(id: number): Promise<void> {
+  await apiClient.delete<ApiResponse<void>>(`/api/admin/departments/${id}`)
+}
+
+export async function downloadDepartmentImportTemplate(): Promise<Blob> {
+  const response = await apiClient.get('/api/admin/departments/import-template', { responseType: 'blob' })
+  return response.data
+}
+
+export async function importDepartments(file: File): Promise<ExcelImportResult> {
+  const form = new FormData()
+  form.append('file', file)
+  const response = await apiClient.post<ApiResponse<ExcelImportResult>>('/api/admin/departments/import', form)
   return response.data.data
 }

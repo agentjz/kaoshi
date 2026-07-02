@@ -57,9 +57,11 @@ public class AdminUserService {
         if (adminUserMapper.countByUsername(request.username()) > 0) {
             throw new BusinessException(ErrorCode.CONFLICT, "账号已存在");
         }
+        ensureDepartmentExists(request.departmentId());
         ensureRolesExist(request.roleIds());
 
         UserAccount user = new UserAccount();
+        user.setDepartmentId(request.departmentId());
         user.setUsername(request.username());
         user.setDisplayName(request.displayName());
         user.setPasswordHash(passwordEncoder.encode(request.password()));
@@ -71,8 +73,10 @@ public class AdminUserService {
 
     @Transactional
     public AdminUserResponse update(Long id, UserUpdateRequest request) {
+        ensureDepartmentExists(request.departmentId());
         ensureRolesExist(request.roleIds());
         UserAccount user = findUser(id);
+        user.setDepartmentId(request.departmentId());
         user.setDisplayName(request.displayName());
         if (request.password() != null && !request.password().isBlank()) {
             user.setPasswordHash(passwordEncoder.encode(request.password()));
@@ -119,9 +123,17 @@ public class AdminUserService {
         }
     }
 
+    private void ensureDepartmentExists(Long departmentId) {
+        if (departmentId != null && adminUserMapper.countActiveDepartmentById(departmentId) == 0) {
+            throw new BusinessException(ErrorCode.VALIDATION_FAILED, "部门不存在或未启用");
+        }
+    }
+
     private AdminUserResponse toResponse(UserAccount user) {
         return new AdminUserResponse(
                 user.getId(),
+                user.getDepartmentId(),
+                user.getDepartmentId() == null ? null : adminUserMapper.findDepartmentName(user.getDepartmentId()),
                 user.getUsername(),
                 user.getDisplayName(),
                 user.getStatus(),

@@ -98,6 +98,20 @@ create table exam_rules (
   index idx_exam_rules_exam (exam_id)
 );
 
+create table exam_draft_questions (
+  id bigint primary key auto_increment,
+  exam_id bigint not null,
+  source_question_id bigint not null,
+  type varchar(32) not null,
+  score decimal(6,2) not null,
+  sort_order int not null,
+  created_at datetime not null default current_timestamp,
+  constraint fk_exam_draft_questions_exam foreign key (exam_id) references exams (id),
+  constraint fk_exam_draft_questions_source foreign key (source_question_id) references questions (id),
+  constraint uk_exam_draft_questions_source unique (exam_id, source_question_id),
+  index idx_exam_draft_questions_exam (exam_id)
+);
+
 create table exam_published_questions (
   id bigint primary key auto_increment,
   exam_id bigint not null,
@@ -273,6 +287,12 @@ values (1, '英语基础模拟考试', '系统初始化考试，用于验证考�
 
 insert into exam_rules (exam_id, bank_id, single_count, single_score, multiple_count, multiple_score, sort_order)
 values (1, 1, 2, 5.00, 1, 5.00, 10);
+
+insert into exam_draft_questions (exam_id, source_question_id, type, score, sort_order)
+values
+  (1, 1, 'SINGLE_CHOICE', 5.00, 10),
+  (1, 3, 'SINGLE_CHOICE', 5.00, 20),
+  (1, 2, 'MULTIPLE_CHOICE', 5.00, 30);
 
 insert into exam_published_questions (id, exam_id, source_question_id, type, stem, analysis, score, sort_order)
 values

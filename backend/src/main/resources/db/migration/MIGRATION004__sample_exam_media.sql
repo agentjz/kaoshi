@@ -25,6 +25,9 @@ set qualify_score = 12.00,
     updated_at = current_timestamp
 where id = 1;
 
+insert into exam_draft_questions (exam_id, source_question_id, type, score, sort_order)
+values (1, 4, 'MULTIPLE_CHOICE', 5.00, 40);
+
 insert into exam_published_questions (id, exam_id, source_question_id, type, stem, analysis, score, sort_order)
 values (4, 1, 4, 'MULTIPLE_CHOICE', 'Look at the chart and choose the correct statements.', 'The chart highlights daily reading and listening practice.', 5.00, 40);
 

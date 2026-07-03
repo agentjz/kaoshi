@@ -88,6 +88,7 @@ export interface ExamPayload {
   openType: 'PUBLIC' | 'DEPARTMENT'
   departmentIds: number[]
   rules: ExamRulePayload[]
+  paperQuestions: ExamPaperQuestionPayload[]
 }
 
 export interface ExamRulePayload {
@@ -102,6 +103,19 @@ export interface ExamRule extends ExamRulePayload {
   id: number
   bankName: string
   sortOrder: number
+}
+
+export interface ExamPaperQuestionPayload {
+  questionId: number
+  score: number
+  sortOrder: number
+}
+
+export interface ExamPaperQuestion extends ExamPaperQuestionPayload {
+  bankId: number
+  bankName: string
+  type: QuestionPayload['type']
+  stem: string
 }
 
 export interface Exam {
@@ -121,6 +135,7 @@ export interface Exam {
   openType: ExamPayload['openType']
   departmentIds: number[]
   rules: ExamRule[]
+  paperQuestions: ExamPaperQuestion[]
   status: 'DRAFT' | 'PUBLISHED' | 'CLOSED'
 }
 
@@ -137,6 +152,7 @@ export interface ExamQuestion {
   stem: string
   score: number
   sortOrder: number
+  selectedLabels: string[]
   attachments: QuestionAttachment[]
   options: ExamQuestionOption[]
 }
@@ -295,6 +311,11 @@ export async function fetchExamTasks(): Promise<Exam[]> {
 
 export async function startExam(examId: number): Promise<ExamSession> {
   const response = await apiClient.post<ApiResponse<ExamSession>>(`/api/exam/${examId}/start`)
+  return response.data.data
+}
+
+export async function saveExamAnswer(examId: number, answer: { questionId: number; selectedLabels: string[] }): Promise<ExamSession> {
+  const response = await apiClient.post<ApiResponse<ExamSession>>(`/api/exam/${examId}/answers`, answer)
   return response.data.data
 }
 

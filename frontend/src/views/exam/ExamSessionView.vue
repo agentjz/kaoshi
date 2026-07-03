@@ -4,7 +4,7 @@
       <header class="exam-status">
         <div>
           <h1>{{ session.title }}</h1>
-          <p>{{ answeredCount }} / {{ session.questions.length }} 已作答</p>
+          <p>{{ answeredCount }} / {{ session.questions.length }} 已作答 · {{ saveStatusText }}</p>
         </div>
         <div class="exam-actions">
           <span class="countdown" :class="{ 'countdown--danger': remainingSeconds <= 300 }">{{ remainingText }}</span>
@@ -41,6 +41,7 @@
               v-model="multipleAnswers[currentQuestion.questionId]"
               class="answer-options"
               :disabled="submitting || submitted"
+              @change="scheduleSave(currentQuestion)"
             >
               <el-checkbox v-for="option in currentQuestion.options" :key="option.id" :value="option.label" border>
                 {{ option.label }}. {{ option.content }}
@@ -51,6 +52,7 @@
               v-model="singleAnswers[currentQuestion.questionId]"
               class="answer-options"
               :disabled="submitting || submitted"
+              @change="scheduleSave(currentQuestion)"
             >
               <el-radio v-for="option in currentQuestion.options" :key="option.id" :value="option.label" border>
                 {{ option.label }}. {{ option.content }}
@@ -105,6 +107,7 @@
                 v-model="multipleAnswers[question.questionId]"
                 class="answer-options"
                 :disabled="submitting || submitted"
+                @change="scheduleSave(question)"
               >
                 <el-checkbox v-for="option in question.options" :key="option.id" :value="option.label" border>
                   {{ option.label }}. {{ option.content }}
@@ -115,6 +118,7 @@
                 v-model="singleAnswers[question.questionId]"
                 class="answer-options"
                 :disabled="submitting || submitted"
+                @change="scheduleSave(question)"
               >
                 <el-radio v-for="option in question.options" :key="option.id" :value="option.label" border>
                   {{ option.label }}. {{ option.content }}
@@ -161,7 +165,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref } from 'v
 import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 
-import { startExam, submitExam, type ExamQuestion, type ExamSession } from '@/api/exam-business'
+import { saveExamAnswer, startExam, submitExam, type ExamQuestion, type ExamSession } from '@/api/exam-business'
 import {
   buildSubmitAnswers,
   countAnsweredQuestions,
@@ -179,7 +183,11 @@ const submitting = ref(false)
 const submitted = ref(false)
 const remainingSeconds = ref(0)
 const currentIndex = ref(0)
+const savingAnswers = ref(0)
+const lastSavedAt = ref<Date | null>(null)
+const saveFailed = ref(false)
 let countdownTimer: number | undefined
+const saveTimers = new Map<number, number>()
 
 const multipleAnswers = reactive<MultipleAnswerMap>({})
 const singleAnswers = reactive<SingleAnswerMap>({})
@@ -189,6 +197,15 @@ const currentQuestion = computed(() => session.value?.questions[currentIndex.val
 const answeredCount = computed(() => countAnsweredQuestions(session.value?.questions ?? [], singleAnswers, multipleAnswers))
 const unansweredCount = computed(() => Math.max(0, (session.value?.questions.length ?? 0) - answeredCount.value))
 const hasActiveAttempt = computed(() => Boolean(session.value && !submitted.value))
+const saveStatusText = computed(() => {
+  if (saveFailed.value) {
+    return '答案保存失败'
+  }
+  if (savingAnswers.value > 0) {
+    return '答案保存中'
+  }
+  return lastSavedAt.value ? '答案已保存' : '答案待保存'
+})
 const groupedQuestions = computed<QuestionGroup[]>(() => {
   const questions = session.value?.questions ?? []
   const groups: QuestionGroup[] = [
@@ -219,6 +236,7 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   stopCountdown()
+  clearSaveTimers()
   window.removeEventListener('beforeunload', preventUnload)
 })
 
@@ -258,11 +276,12 @@ async function beginExam() {
 function initializeAnswers(currentSession: ExamSession) {
   for (const question of currentSession.questions) {
     if (question.type === 'MULTIPLE_CHOICE') {
-      multipleAnswers[question.questionId] = []
+      multipleAnswers[question.questionId] = [...question.selectedLabels]
     } else {
-      singleAnswers[question.questionId] = ''
+      singleAnswers[question.questionId] = question.selectedLabels[0] || ''
     }
   }
+  lastSavedAt.value = currentSession.questions.some((question) => question.selectedLabels.length > 0) ? new Date() : null
 }
 
 function startCountdown(currentSession: ExamSession) {
@@ -332,6 +351,7 @@ async function submit(autoSubmit: boolean) {
   }
   submitting.value = true
   try {
+    await flushAnswerSaves()
     const payload = buildSubmitAnswers(session.value.questions, singleAnswers, multipleAnswers)
     const result = await submitExam(session.value.examId, payload)
     submitted.value = true
@@ -341,6 +361,67 @@ async function submit(autoSubmit: boolean) {
   } finally {
     submitting.value = false
   }
+}
+
+function scheduleSave(question: ExamQuestion) {
+  if (!session.value || submitted.value) {
+    return
+  }
+  saveFailed.value = false
+  const existing = saveTimers.get(question.questionId)
+  if (existing) {
+    window.clearTimeout(existing)
+  }
+  const timer = window.setTimeout(() => {
+    saveTimers.delete(question.questionId)
+    void saveQuestionAnswer(question).catch(() => {
+      ElMessage.error('答案保存失败，请检查网络后重试')
+    })
+  }, 300)
+  saveTimers.set(question.questionId, timer)
+}
+
+async function flushAnswerSaves() {
+  if (!session.value) {
+    return
+  }
+  clearSaveTimers()
+  await Promise.all(session.value.questions.map((question) => saveQuestionAnswer(question)))
+}
+
+function clearSaveTimers() {
+  for (const timer of saveTimers.values()) {
+    window.clearTimeout(timer)
+  }
+  saveTimers.clear()
+}
+
+async function saveQuestionAnswer(question: ExamQuestion) {
+  if (!session.value || submitted.value) {
+    return
+  }
+  savingAnswers.value += 1
+  try {
+    await saveExamAnswer(session.value.examId, {
+      questionId: question.questionId,
+      selectedLabels: selectedLabels(question),
+    })
+    saveFailed.value = false
+    lastSavedAt.value = new Date()
+  } catch (error) {
+    saveFailed.value = true
+    throw error
+  } finally {
+    savingAnswers.value = Math.max(0, savingAnswers.value - 1)
+  }
+}
+
+function selectedLabels(question: ExamQuestion) {
+  if (question.type === 'MULTIPLE_CHOICE') {
+    return [...(multipleAnswers[question.questionId] || [])].sort()
+  }
+  const selected = singleAnswers[question.questionId]
+  return selected ? [selected] : []
 }
 
 function preventUnload(event: BeforeUnloadEvent) {

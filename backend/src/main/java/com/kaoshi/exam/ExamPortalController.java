@@ -2,6 +2,7 @@ package com.kaoshi.exam;
 
 import com.kaoshi.common.api.ApiResponse;
 import com.kaoshi.exam.dto.ExamResultDetailResponse;
+import com.kaoshi.exam.dto.ExamAnswerSaveRequest;
 import com.kaoshi.exam.dto.ExamResponse;
 import com.kaoshi.exam.dto.ExamResultResponse;
 import com.kaoshi.exam.dto.ExamSessionResponse;
@@ -49,6 +50,15 @@ public class ExamPortalController {
             @Valid @RequestBody ExamSubmitRequest request
     ) {
         return ApiResponse.ok(examService.submit(examId, user.id(), request));
+    }
+
+    @PostMapping("/{examId}/answers")
+    public ApiResponse<ExamSessionResponse> saveAnswer(
+            @PathVariable Long examId,
+            @AuthenticationPrincipal AuthUser user,
+            @Valid @RequestBody ExamAnswerSaveRequest request
+    ) {
+        return ApiResponse.ok(examService.saveAnswer(examId, user.id(), request));
     }
 
     @GetMapping("/results")

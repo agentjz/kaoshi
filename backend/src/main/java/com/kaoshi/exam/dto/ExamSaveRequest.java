@@ -24,7 +24,8 @@ public record ExamSaveRequest(
         @NotBlank String questionOrderMode,
         @NotBlank String openType,
         List<Long> departmentIds,
-        List<@Valid ExamRuleRequest> rules
+        List<@Valid ExamRuleRequest> rules,
+        List<@Valid ExamPaperQuestionRequest> paperQuestions
 ) {
 }
 

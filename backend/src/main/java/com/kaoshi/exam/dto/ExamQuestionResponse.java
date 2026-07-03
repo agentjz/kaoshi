@@ -11,6 +11,7 @@ public record ExamQuestionResponse(
         String stem,
         BigDecimal score,
         Integer sortOrder,
+        List<String> selectedLabels,
         List<QuestionAttachmentResponse> attachments,
         List<ExamQuestionOptionResponse> options
 ) {

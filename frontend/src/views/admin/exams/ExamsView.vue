@@ -102,30 +102,71 @@
           <div v-else class="rule-list">
             <article v-for="(rule, index) in ruleset" :key="rule.rowId" class="rule-item">
               <el-form-item label="题库">
-                <el-select v-model="rule.bankId" filterable placeholder="选择题库" class="form-control" @change="loadBankQuestions(rule.bankId)">
+                <el-select v-model="rule.bankId" filterable placeholder="选择题库" class="form-control" @change="onRuleBankChange(rule.bankId)">
                   <el-option v-for="bank in availableBanks(rule)" :key="bank.id" :label="bank.name" :value="bank.id" />
                 </el-select>
               </el-form-item>
               <div class="rule-fields">
                 <el-form-item :label="`单选题（可用 ${bankStats(rule.bankId).single}）`">
-                  <el-input-number v-model="rule.singleCount" :min="0" :max="bankStats(rule.bankId).single" :controls="false" />
+                  <el-input-number v-model="rule.singleCount" :min="0" :max="bankStats(rule.bankId).single" :controls="false" @change="markPaperStale" />
                 </el-form-item>
                 <el-form-item label="单选分数">
-                  <el-input-number v-model="rule.singleScore" :min="0" :step="0.5" :controls="false" />
+                  <el-input-number v-model="rule.singleScore" :min="0" :step="0.5" :controls="false" @change="markPaperStale" />
                 </el-form-item>
                 <el-form-item :label="`多选题（可用 ${bankStats(rule.bankId).multiple}）`">
-                  <el-input-number v-model="rule.multipleCount" :min="0" :max="bankStats(rule.bankId).multiple" :controls="false" />
+                  <el-input-number v-model="rule.multipleCount" :min="0" :max="bankStats(rule.bankId).multiple" :controls="false" @change="markPaperStale" />
                 </el-form-item>
                 <el-form-item label="多选分数">
-                  <el-input-number v-model="rule.multipleScore" :min="0" :step="0.5" :controls="false" />
+                  <el-input-number v-model="rule.multipleScore" :min="0" :step="0.5" :controls="false" @change="markPaperStale" />
                 </el-form-item>
               </div>
               <div class="rule-item__footer">
                 <span>本题库小计：{{ ruleScore(rule) }} 分</span>
-                <el-button link type="danger" @click="ruleset.splice(index, 1)">删除</el-button>
+                <el-button link type="danger" @click="removeRule(index)">删除</el-button>
               </div>
             </article>
           </div>
+        </section>
+
+        <section class="publish-section">
+          <div class="publish-section__head">
+            <h2>题目明细</h2>
+            <el-button @click="generatePaperQuestions">生成题目明细</el-button>
+          </div>
+          <el-empty v-if="paperQuestions.length === 0" description="保存或发布前会按组卷规则生成题目明细" />
+          <el-table v-else :data="paperQuestions" border class="paper-table">
+            <el-table-column label="顺序" width="110">
+              <template #default="{ row }: { row: ExamPaperQuestionForm }">
+                <el-input-number v-model="row.sortOrder" :min="1" :step="1" step-strictly :controls="false" @change="sortPaperQuestions" />
+              </template>
+            </el-table-column>
+            <el-table-column label="题型" width="100">
+              <template #default="{ row }: { row: ExamPaperQuestionForm }">
+                <el-tag effect="plain">{{ questionTypeText(row.type) }}</el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column label="题干" min-width="260">
+              <template #default="{ row }: { row: ExamPaperQuestionForm }">
+                <span class="paper-stem">{{ row.stem }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column label="题库" width="160">
+              <template #default="{ row }: { row: ExamPaperQuestionForm }">
+                {{ row.bankName }}
+              </template>
+            </el-table-column>
+            <el-table-column label="分值" width="120">
+              <template #default="{ row }: { row: ExamPaperQuestionForm }">
+                <el-input-number v-model="row.score" :min="0.5" :step="0.5" :controls="false" />
+              </template>
+            </el-table-column>
+            <el-table-column label="排序" width="140">
+              <template #default="{ $index }: { $index: number }">
+                <el-button link :disabled="$index === 0" @click="movePaperQuestion($index, -1)">上移</el-button>
+                <el-button link :disabled="$index === paperQuestions.length - 1" @click="movePaperQuestion($index, 1)">下移</el-button>
+              </template>
+            </el-table-column>
+          </el-table>
         </section>
 
         <section class="publish-section">
@@ -231,6 +272,7 @@ import {
   publishExam,
   updateExam,
   type Exam,
+  type ExamPaperQuestion,
   type ExamPayload,
   type Question,
   type QuestionBank,
@@ -244,6 +286,16 @@ interface ExamRuleForm {
   singleScore: number
   multipleCount: number
   multipleScore: number
+}
+
+interface ExamPaperQuestionForm {
+  questionId: number
+  bankId: number
+  bankName: string
+  type: Question['type']
+  stem: string
+  score: number
+  sortOrder: number
 }
 
 const displayModeOptions = [
@@ -261,6 +313,8 @@ const banks = ref<QuestionBank[]>([])
 const departments = ref<Department[]>([])
 const bankQuestions = ref<Record<number, Question[]>>({})
 const ruleset = ref<ExamRuleForm[]>([])
+const paperQuestions = ref<ExamPaperQuestionForm[]>([])
+const paperStale = ref(false)
 const total = ref(0)
 const loading = ref(false)
 const saving = ref(false)
@@ -289,6 +343,7 @@ const form = reactive<ExamPayload>({
   openType: 'PUBLIC',
   departmentIds: [],
   rules: [],
+  paperQuestions: [],
 })
 
 const formRules: FormRules<ExamPayload> = {
@@ -300,8 +355,18 @@ const formRules: FormRules<ExamPayload> = {
   openType: [{ required: true, message: '请选择开放范围', trigger: 'change' }],
 }
 
-const totalScore = computed(() => ruleset.value.reduce((sum, rule) => sum + ruleScore(rule), 0))
-const totalQuestionCount = computed(() => ruleset.value.reduce((sum, rule) => sum + rule.singleCount + rule.multipleCount, 0))
+const totalScore = computed(() => {
+  if (paperQuestions.value.length > 0) {
+    return paperQuestions.value.reduce((sum, question) => sum + question.score, 0)
+  }
+  return ruleset.value.reduce((sum, rule) => sum + ruleScore(rule), 0)
+})
+const totalQuestionCount = computed(() => {
+  if (paperQuestions.value.length > 0) {
+    return paperQuestions.value.length
+  }
+  return ruleset.value.reduce((sum, rule) => sum + rule.singleCount + rule.multipleCount, 0)
+})
 
 onMounted(async () => {
   await Promise.all([loadBanks(), loadDepartments(), loadExams()])
@@ -370,6 +435,8 @@ async function fillEditor(exam: Exam) {
   for (const rule of ruleset.value) {
     await loadBankQuestions(rule.bankId)
   }
+  paperQuestions.value = exam.paperQuestions.map(toPaperQuestionForm)
+  paperStale.value = false
 }
 
 function resetForm() {
@@ -387,6 +454,9 @@ function resetForm() {
   form.openType = 'PUBLIC'
   form.departmentIds = []
   form.rules = []
+  form.paperQuestions = []
+  paperQuestions.value = []
+  paperStale.value = false
   currentStatus.value = 'DRAFT'
   attemptLimitMode.value = 'UNLIMITED'
   limitedAttemptCount.value = 1
@@ -402,6 +472,12 @@ function addRule() {
     multipleCount: 0,
     multipleScore: 5,
   })
+  markPaperStale()
+}
+
+function removeRule(index: number) {
+  ruleset.value.splice(index, 1)
+  markPaperStale()
 }
 
 function availableBanks(rule: ExamRuleForm) {
@@ -420,6 +496,15 @@ async function loadBankQuestions(bankId: number | null) {
   }
 }
 
+async function onRuleBankChange(bankId: number | null) {
+  await loadBankQuestions(bankId)
+  markPaperStale()
+}
+
+function markPaperStale() {
+  paperStale.value = true
+}
+
 function bankStats(bankId: number | null) {
   const questions = bankId ? bankQuestions.value[bankId] || [] : []
   return {
@@ -430,6 +515,81 @@ function bankStats(bankId: number | null) {
 
 function ruleScore(rule: ExamRuleForm) {
   return rule.singleCount * rule.singleScore + rule.multipleCount * rule.multipleScore
+}
+
+async function generatePaperQuestions() {
+  for (const rule of ruleset.value) {
+    await loadBankQuestions(rule.bankId)
+  }
+  const generated: ExamPaperQuestionForm[] = []
+  let sortOrder = 10
+  for (const rule of ruleset.value) {
+    const questions = rule.bankId ? bankQuestions.value[rule.bankId] || [] : []
+    const singles = questions
+      .filter((question) => question.type === 'SINGLE_CHOICE')
+      .sort((left, right) => left.id - right.id)
+      .slice(0, rule.singleCount)
+    const multiples = questions
+      .filter((question) => question.type === 'MULTIPLE_CHOICE')
+      .sort((left, right) => left.id - right.id)
+      .slice(0, rule.multipleCount)
+    for (const question of singles) {
+      generated.push(toGeneratedPaperQuestion(question, rule.singleScore, sortOrder))
+      sortOrder += 10
+    }
+    for (const question of multiples) {
+      generated.push(toGeneratedPaperQuestion(question, rule.multipleScore, sortOrder))
+      sortOrder += 10
+    }
+  }
+  paperQuestions.value = generated
+  paperStale.value = false
+}
+
+function toGeneratedPaperQuestion(question: Question, score: number, sortOrder: number): ExamPaperQuestionForm {
+  return {
+    questionId: question.id,
+    bankId: question.bankId,
+    bankName: question.bankName,
+    type: question.type,
+    stem: question.stem,
+    score,
+    sortOrder,
+  }
+}
+
+function toPaperQuestionForm(question: ExamPaperQuestion): ExamPaperQuestionForm {
+  return {
+    questionId: question.questionId,
+    bankId: question.bankId,
+    bankName: question.bankName,
+    type: question.type,
+    stem: question.stem,
+    score: question.score,
+    sortOrder: question.sortOrder,
+  }
+}
+
+function movePaperQuestion(index: number, offset: number) {
+  const target = index + offset
+  if (target < 0 || target >= paperQuestions.value.length) {
+    return
+  }
+  const rows = [...paperQuestions.value]
+  const [current] = rows.splice(index, 1)
+  rows.splice(target, 0, current)
+  paperQuestions.value = normalizePaperSort(rows)
+}
+
+function sortPaperQuestions() {
+  paperQuestions.value = normalizePaperSort([...paperQuestions.value].sort((left, right) => left.sortOrder - right.sortOrder))
+}
+
+function normalizePaperSort(rows: ExamPaperQuestionForm[]) {
+  return rows.map((row, index) => ({
+    ...row,
+    sortOrder: (index + 1) * 10,
+  }))
 }
 
 async function saveDraft() {
@@ -498,6 +658,13 @@ async function buildPayload(): Promise<ExamPayload | null> {
     ElMessage.error('请至少添加一个题库规则')
     return null
   }
+  if (paperQuestions.value.length === 0 || paperStale.value) {
+    await generatePaperQuestions()
+  }
+  if (paperQuestions.value.length === 0) {
+    ElMessage.error('请先生成题目明细')
+    return null
+  }
   if (form.qualifyScore > totalScore.value) {
     ElMessage.error('及格分不能超过试卷总分')
     return null
@@ -532,6 +699,11 @@ async function buildPayload(): Promise<ExamPayload | null> {
     openType: form.openType,
     departmentIds: [...form.departmentIds],
     rules: payloadRules,
+    paperQuestions: paperQuestions.value.map((question) => ({
+      questionId: question.questionId,
+      score: question.score,
+      sortOrder: question.sortOrder,
+    })),
   }
 }
 
@@ -549,6 +721,10 @@ function displayModeText(displayMode: Exam['displayMode']) {
 
 function questionOrderText(mode: Exam['questionOrderMode']) {
   return mode === 'RANDOM' ? '随机顺序' : '固定顺序'
+}
+
+function questionTypeText(type: Question['type']) {
+  return type === 'MULTIPLE_CHOICE' ? '多选题' : '单选题'
 }
 </script>
 
@@ -639,6 +815,16 @@ function questionOrderText(mode: Exam['questionOrderMode']) {
 .rule-item__footer {
   color: var(--ks-warning);
   font-weight: 700;
+}
+
+.paper-table :deep(.el-input-number) {
+  width: 100%;
+}
+
+.paper-stem {
+  display: block;
+  overflow-wrap: anywhere;
+  line-height: 1.5;
 }
 
 .publish-form-grid {

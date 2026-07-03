@@ -130,6 +130,48 @@ public interface ExamMapper {
             @Param("limit") int limit
     );
 
+    @Delete("delete from exam_draft_questions where exam_id = #{examId}")
+    void deleteDraftQuestions(@Param("examId") Long examId);
+
+    @Insert("""
+            insert into exam_draft_questions (exam_id, source_question_id, type, score, sort_order)
+            values (#{examId}, #{sourceQuestionId}, #{type}, #{score}, #{sortOrder})
+            """)
+    void insertDraftQuestion(Map<String, Object> question);
+
+    @Select("""
+            select edq.id,
+                   edq.exam_id as examId,
+                   edq.source_question_id as questionId,
+                   edq.type,
+                   edq.score,
+                   edq.sort_order as sortOrder,
+                   q.bank_id as bankId,
+                   qb.name as bankName,
+                   q.stem,
+                   q.status
+            from exam_draft_questions edq
+            join questions q on q.id = edq.source_question_id
+            join question_banks qb on qb.id = q.bank_id
+            where edq.exam_id = #{examId}
+            order by edq.sort_order, edq.id
+            """)
+    List<Map<String, Object>> findDraftQuestions(@Param("examId") Long examId);
+
+    @Select("""
+            select q.id as questionId,
+                   q.bank_id as bankId,
+                   qb.name as bankName,
+                   q.type,
+                   q.stem,
+                   q.analysis,
+                   q.status
+            from questions q
+            join question_banks qb on qb.id = q.bank_id
+            where q.id = #{questionId}
+            """)
+    Map<String, Object> findSourceQuestion(@Param("questionId") Long questionId);
+
     @Delete("""
             delete from exam_published_attachments
             where published_question_id in (
@@ -155,6 +197,21 @@ public interface ExamMapper {
             """)
     @Options(useGeneratedKeys = true, keyProperty = "id")
     void insertPublishedQuestion(Map<String, Object> question);
+
+    @Select("""
+            select q.id as questionId,
+                   q.type,
+                   q.stem,
+                   q.analysis,
+                   edq.score,
+                   edq.sort_order as sortOrder
+            from exam_draft_questions edq
+            join questions q on q.id = edq.source_question_id
+            where edq.exam_id = #{examId}
+              and q.status = 'ACTIVE'
+            order by edq.sort_order, edq.id
+            """)
+    List<Map<String, Object>> findDraftQuestionsForPublish(@Param("examId") Long examId);
 
     @Insert("""
             insert into exam_published_options (published_question_id, option_label, content, is_correct, sort_order)
@@ -289,12 +346,25 @@ public interface ExamMapper {
     void copyAttemptAttachments(@Param("attemptQuestionId") Long attemptQuestionId, @Param("publishedQuestionId") Long publishedQuestionId);
 
     @Select("""
-            select *
-            from exam_attempt_questions
-            where attempt_id = #{attemptId}
-            order by display_order, id
+            select aq.*,
+                   ea.selected_labels as selectedLabels
+            from exam_attempt_questions aq
+            left join exam_answers ea on ea.attempt_question_id = aq.id
+            where aq.attempt_id = #{attemptId}
+            order by aq.display_order, aq.id
             """)
     List<Map<String, Object>> findAttemptQuestions(@Param("attemptId") Long attemptId);
+
+    @Select("""
+            select aq.*
+            from exam_attempt_questions aq
+            where aq.attempt_id = #{attemptId}
+              and aq.source_question_id = #{questionId}
+            """)
+    Map<String, Object> findAttemptQuestionBySource(
+            @Param("attemptId") Long attemptId,
+            @Param("questionId") Long questionId
+    );
 
     @Select("""
             select id, option_label as label, content, sort_order as sortOrder
@@ -323,14 +393,26 @@ public interface ExamMapper {
     @Insert("""
             insert into exam_answers (attempt_id, attempt_question_id, selected_labels, is_correct, score)
             values (#{attemptId}, #{attemptQuestionId}, #{selectedLabels}, #{correct}, #{score})
+            on duplicate key update
+              selected_labels = values(selected_labels),
+              is_correct = values(is_correct),
+              score = values(score),
+              updated_at = current_timestamp
             """)
-    void insertAnswer(
+    void upsertAnswer(
             @Param("attemptId") Long attemptId,
             @Param("attemptQuestionId") Long attemptQuestionId,
             @Param("selectedLabels") String selectedLabels,
             @Param("correct") boolean correct,
             @Param("score") BigDecimal score
     );
+
+    @Select("""
+            select selected_labels
+            from exam_answers
+            where attempt_question_id = #{attemptQuestionId}
+            """)
+    String findSelectedLabels(@Param("attemptQuestionId") Long attemptQuestionId);
 
     @Update("""
             update exam_attempts

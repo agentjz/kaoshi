@@ -18,6 +18,7 @@ import {
   fetchQuestionDetail,
   importQuestions,
   publishExam,
+  saveExamAnswer,
   startExam,
   submitExam,
   uploadFile,
@@ -75,6 +76,7 @@ describe('exam business api', () => {
       openType: 'PUBLIC',
       departmentIds: [],
       rules: [{ bankId: 1, singleCount: 1, singleScore: 5, multipleCount: 0, multipleScore: 0 }],
+      paperQuestions: [{ questionId: 2, score: 5, sortOrder: 10 }],
     })
     await fetchAdminExamDetail(1)
     await publishExam(1)
@@ -113,6 +115,7 @@ describe('exam business api', () => {
       openType: 'PUBLIC',
       departmentIds: [],
       rules: [{ bankId: 1, singleCount: 1, singleScore: 5, multipleCount: 0, multipleScore: 0 }],
+      paperQuestions: [{ questionId: 2, score: 5, sortOrder: 10 }],
     })
     expect(apiClient.get).toHaveBeenCalledWith('/api/admin/exams/1')
     expect(apiClient.post).toHaveBeenCalledWith('/api/admin/exams/1/publish')
@@ -125,6 +128,7 @@ describe('exam business api', () => {
 
     await fetchExamTasks()
     await startExam(1)
+    await saveExamAnswer(1, { questionId: 2, selectedLabels: ['A'] })
     await submitExam(1, [{ questionId: 2, selectedLabels: ['A'] }])
     await fetchAdminResults()
     await fetchAdminResultDetail(9)
@@ -133,6 +137,7 @@ describe('exam business api', () => {
 
     expect(apiClient.get).toHaveBeenCalledWith('/api/exam/tasks')
     expect(apiClient.post).toHaveBeenCalledWith('/api/exam/1/start')
+    expect(apiClient.post).toHaveBeenCalledWith('/api/exam/1/answers', { questionId: 2, selectedLabels: ['A'] })
     expect(apiClient.post).toHaveBeenCalledWith('/api/exam/1/submit', {
       answers: [{ questionId: 2, selectedLabels: ['A'] }],
     })

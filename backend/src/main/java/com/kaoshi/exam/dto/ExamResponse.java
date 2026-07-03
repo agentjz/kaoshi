@@ -21,6 +21,7 @@ public record ExamResponse(
         String openType,
         List<Long> departmentIds,
         List<ExamRuleResponse> rules,
+        List<ExamPaperQuestionResponse> paperQuestions,
         String status
 ) {
 }

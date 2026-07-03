@@ -17,7 +17,7 @@ def main() -> int:
     configure_console()
     print("")
     print("== kaoshi 真实浏览器测试 ==")
-    print("会先停止旧测试服务，重置 Docker 数据库，启动真实后端和前端，然后运行 Chromium 自动测试。")
+    print("会先停止旧测试服务，重置 Docker 数据库，启动真实后端和前端，然后运行有头 Chromium 自动测试。")
     subprocess.run(["powershell", "-ExecutionPolicy", "Bypass", "-File", str(ROOT / "scripts" / "stop-dev.ps1")], cwd=ROOT, check=True)
     stack = subprocess.Popen(
         ["powershell", "-ExecutionPolicy", "Bypass", "-File", str(ROOT / "scripts" / "run-e2e-stack.ps1")],

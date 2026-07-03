@@ -6,6 +6,9 @@ import com.kaoshi.common.page.PageRequest;
 import com.kaoshi.common.page.PageResponse;
 import com.kaoshi.exam.domain.Exam;
 import com.kaoshi.exam.dto.AnswerSubmitItem;
+import com.kaoshi.exam.dto.ExamAnswerSaveRequest;
+import com.kaoshi.exam.dto.ExamPaperQuestionRequest;
+import com.kaoshi.exam.dto.ExamPaperQuestionResponse;
 import com.kaoshi.exam.dto.ExamQuestionOptionResponse;
 import com.kaoshi.exam.dto.ExamQuestionResponse;
 import com.kaoshi.exam.dto.ExamResultDetailResponse;
@@ -38,6 +41,7 @@ import java.util.Set;
 public class ExamService {
     private static final String SINGLE_CHOICE = "SINGLE_CHOICE";
     private static final String MULTIPLE_CHOICE = "MULTIPLE_CHOICE";
+    private static final Duration SUBMIT_GRACE = Duration.ofSeconds(30);
 
     private final ExamMapper examMapper;
 
@@ -66,6 +70,7 @@ public class ExamService {
         examMapper.insertExam(exam);
         replaceExamDepartments(exam.getId(), request.departmentIds());
         replaceRules(exam.getId(), request.rules());
+        replaceDraftQuestions(exam.getId(), request);
         return detail(exam.getId());
     }
 
@@ -77,6 +82,7 @@ public class ExamService {
         examMapper.updateExam(exam);
         replaceExamDepartments(id, request.departmentIds());
         replaceRules(id, request.rules());
+        replaceDraftQuestions(id, request);
         return detail(id);
     }
 
@@ -85,7 +91,7 @@ public class ExamService {
         Exam exam = findExam(id);
         List<Map<String, Object>> rules = examMapper.findExamRules(id);
         validatePublish(exam, rules);
-        rebuildPublishedSnapshot(id, rules);
+        rebuildPublishedSnapshot(id);
         examMapper.updateExamStatus(id, "PUBLISHED");
         return detail(id);
     }
@@ -129,6 +135,18 @@ public class ExamService {
         } else if (examMapper.countAttemptQuestions(longValue(value(attempt, "id"))) == 0) {
             createAttemptSnapshot(exam, longValue(value(attempt, "id")));
         }
+        ensureAttemptCanContinue(exam, attempt);
+        return sessionResponse(exam, attempt);
+    }
+
+    @Transactional
+    public ExamSessionResponse saveAnswer(Long examId, Long userId, ExamAnswerSaveRequest request) {
+        Exam exam = findExam(examId);
+        ensureExamAvailable(exam);
+        ensureExamOpenToUser(exam, userId);
+        Map<String, Object> attempt = findRunningAttempt(examId, userId);
+        ensureAttemptCanContinue(exam, attempt);
+        saveAnswerForAttempt(longValue(value(attempt, "id")), request.questionId(), request.selectedLabels(), false, BigDecimal.ZERO);
         return sessionResponse(exam, attempt);
     }
 
@@ -137,19 +155,21 @@ public class ExamService {
         Exam exam = findExam(examId);
         ensureExamAvailable(exam);
         ensureExamOpenToUser(exam, userId);
-        Map<String, Object> attempt = examMapper.findInProgressAttempt(examId, userId);
-        if (attempt == null) {
-            if (examMapper.countSubmittedAttempts(examId, userId) > 0) {
-                throw new BusinessException(ErrorCode.CONFLICT, "考试已提交，不能重复提交");
-            }
-            throw new BusinessException(ErrorCode.CONFLICT, "考试尚未开始");
-        }
-
-        Map<Long, AnswerSubmitItem> submitted = new HashMap<>();
         for (AnswerSubmitItem answer : request.answers()) {
-            submitted.put(answer.questionId(), answer);
+            normalizedLabels(answer.selectedLabels());
         }
+        Map<String, Object> attempt = findRunningAttempt(examId, userId);
+        if (isAttemptPastDeadline(exam, attempt, SUBMIT_GRACE)) {
+            return gradeAndLockAttempt(exam, attempt);
+        }
+        Long attemptId = longValue(value(attempt, "id"));
+        for (AnswerSubmitItem answer : request.answers()) {
+            saveAnswerForAttempt(attemptId, answer.questionId(), answer.selectedLabels(), false, BigDecimal.ZERO);
+        }
+        return gradeAndLockAttempt(exam, attempt);
+    }
 
+    private ExamResultResponse gradeAndLockAttempt(Exam exam, Map<String, Object> attempt) {
         BigDecimal totalScore = BigDecimal.ZERO;
         BigDecimal obtainedScore = BigDecimal.ZERO;
         int correctCount = 0;
@@ -157,11 +177,9 @@ public class ExamService {
         List<Map<String, Object>> questions = examMapper.findAttemptQuestions(attemptId);
         for (Map<String, Object> question : questions) {
             Long attemptQuestionId = longValue(value(question, "id"));
-            Long sourceQuestionId = longValue(value(question, "sourceQuestionId"));
             BigDecimal questionScore = decimalValue(value(question, "score"));
             totalScore = totalScore.add(questionScore);
-            AnswerSubmitItem answer = submitted.get(sourceQuestionId);
-            List<String> selected = answer == null ? List.of() : normalizedLabels(answer.selectedLabels());
+            List<String> selected = splitLabels(examMapper.findSelectedLabels(attemptQuestionId));
             List<String> correct = normalizedLabels(examMapper.findAttemptCorrectLabels(attemptQuestionId));
             boolean right = selected.equals(correct);
             BigDecimal score = right ? questionScore : BigDecimal.ZERO;
@@ -169,7 +187,7 @@ public class ExamService {
                 correctCount++;
                 obtainedScore = obtainedScore.add(score);
             }
-            examMapper.insertAnswer(attemptId, attemptQuestionId, String.join(",", selected), right, score);
+            examMapper.upsertAnswer(attemptId, attemptQuestionId, String.join(",", selected), right, score);
         }
 
         LocalDateTime submittedAt = LocalDateTime.now();
@@ -181,8 +199,8 @@ public class ExamService {
 
         Map<String, Object> result = new HashMap<>();
         result.put("attemptId", attemptId);
-        result.put("examId", examId);
-        result.put("userId", userId);
+        result.put("examId", exam.getId());
+        result.put("userId", longValue(value(attempt, "userId")));
         result.put("totalScore", totalScore);
         result.put("obtainedScore", obtainedScore);
         result.put("correctCount", correctCount);
@@ -192,9 +210,9 @@ public class ExamService {
         return new ExamResultResponse(
                 longValue(value(result, "id")),
                 attemptId,
-                examId,
+                exam.getId(),
                 exam.getTitle(),
-                userId,
+                longValue(value(attempt, "userId")),
                 totalScore,
                 obtainedScore,
                 correctCount,
@@ -266,19 +284,45 @@ public class ExamService {
         if (Boolean.TRUE.equals(exam.getTimeLimit()) && !exam.getEndTime().isAfter(exam.getStartTime())) {
             throw new BusinessException(ErrorCode.VALIDATION_FAILED, "考试结束时间必须晚于开始时间");
         }
-        BigDecimal totalScore = BigDecimal.ZERO;
-        int totalCount = 0;
         for (Map<String, Object> rule : rules) {
-            totalScore = totalScore.add(validateRuleAvailability(rule, SINGLE_CHOICE));
-            totalScore = totalScore.add(validateRuleAvailability(rule, MULTIPLE_CHOICE));
-            totalCount += intValue(value(rule, "singleCount")) + intValue(value(rule, "multipleCount"));
+            validateRuleAvailability(rule, SINGLE_CHOICE);
+            validateRuleAvailability(rule, MULTIPLE_CHOICE);
         }
-        if (totalCount == 0 || totalScore.compareTo(BigDecimal.ZERO) <= 0) {
-            throw new BusinessException(ErrorCode.VALIDATION_FAILED, "发布考试至少需要一道有效试题和有效分值");
+        List<Map<String, Object>> draftQuestions = examMapper.findDraftQuestions(exam.getId());
+        if (draftQuestions.isEmpty()) {
+            throw new BusinessException(ErrorCode.VALIDATION_FAILED, "发布考试必须生成题目明细");
+        }
+        BigDecimal totalScore = calculatePaperScore(draftQuestions);
+        int totalCount = draftQuestions.size();
+        int activeCount = examMapper.findDraftQuestionsForPublish(exam.getId()).size();
+        if (activeCount != totalCount) {
+            throw new BusinessException(ErrorCode.VALIDATION_FAILED, "题目明细包含已停用试题");
+        }
+        if (totalScore.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new BusinessException(ErrorCode.VALIDATION_FAILED, "发布考试至少需要有效分值");
         }
         if (exam.getQualifyScore().compareTo(totalScore) > 0) {
             throw new BusinessException(ErrorCode.VALIDATION_FAILED, "及格分不能超过试卷总分");
         }
+    }
+
+    private BigDecimal calculatePaperScore(List<Map<String, Object>> paperQuestions) {
+        return paperQuestions.stream()
+                .map(question -> decimalValue(value(question, "score")))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    private int calculatePaperCount(List<Map<String, Object>> paperQuestions) {
+        return paperQuestions.size();
+    }
+
+    private BigDecimal calculateRulePublishScore(List<Map<String, Object>> rules) {
+        BigDecimal totalScore = BigDecimal.ZERO;
+        for (Map<String, Object> rule : rules) {
+            totalScore = totalScore.add(validateRuleAvailability(rule, SINGLE_CHOICE));
+            totalScore = totalScore.add(validateRuleAvailability(rule, MULTIPLE_CHOICE));
+        }
+        return totalScore;
     }
 
     private BigDecimal validateRuleAvailability(Map<String, Object> rule, String type) {
@@ -369,21 +413,52 @@ public class ExamService {
         }
     }
 
-    private void rebuildPublishedSnapshot(Long examId, List<Map<String, Object>> rules) {
-        examMapper.deletePublishedAttachments(examId);
-        examMapper.deletePublishedOptions(examId);
-        examMapper.deletePublishedQuestions(examId);
+    private void replaceDraftQuestions(Long examId, ExamSaveRequest request) {
+        examMapper.deleteDraftQuestions(examId);
+        List<ExamPaperQuestionRequest> paperQuestions = request.paperQuestions();
+        if (paperQuestions != null && !paperQuestions.isEmpty()) {
+            replaceDraftQuestionsFromRequest(examId, paperQuestions);
+            return;
+        }
+        replaceDraftQuestionsFromRules(examId, request.rules());
+    }
+
+    private void replaceDraftQuestionsFromRequest(Long examId, List<ExamPaperQuestionRequest> paperQuestions) {
+        Set<Long> questionIds = new HashSet<>();
         int sort = 10;
-        for (Map<String, Object> rule : rules) {
-            sort = publishQuestions(examId, rule, SINGLE_CHOICE, sort);
-            sort = publishQuestions(examId, rule, MULTIPLE_CHOICE, sort);
+        for (ExamPaperQuestionRequest request : paperQuestions.stream()
+                .sorted((left, right) -> left.sortOrder().compareTo(right.sortOrder()))
+                .toList()) {
+            if (!questionIds.add(request.questionId())) {
+                throw new BusinessException(ErrorCode.VALIDATION_FAILED, "题目明细不能重复选择试题");
+            }
+            Map<String, Object> source = examMapper.findSourceQuestion(request.questionId());
+            if (source == null || !"ACTIVE".equals(stringValue(value(source, "status")))) {
+                throw new BusinessException(ErrorCode.VALIDATION_FAILED, "题目不存在或未启用");
+            }
+            Map<String, Object> question = new HashMap<>();
+            question.put("examId", examId);
+            question.put("sourceQuestionId", request.questionId());
+            question.put("type", stringValue(value(source, "type")));
+            question.put("score", request.score());
+            question.put("sortOrder", sort);
+            examMapper.insertDraftQuestion(question);
+            sort += 10;
         }
     }
 
-    private int publishQuestions(Long examId, Map<String, Object> rule, String type, int sort) {
-        Long bankId = longValue(value(rule, "bankId"));
-        int count = SINGLE_CHOICE.equals(type) ? intValue(value(rule, "singleCount")) : intValue(value(rule, "multipleCount"));
-        BigDecimal score = SINGLE_CHOICE.equals(type) ? decimalValue(value(rule, "singleScore")) : decimalValue(value(rule, "multipleScore"));
+    private void replaceDraftQuestionsFromRules(Long examId, List<ExamRuleRequest> rules) {
+        if (rules == null) {
+            return;
+        }
+        int sort = 10;
+        for (ExamRuleRequest rule : rules) {
+            sort = draftQuestions(examId, rule.bankId(), SINGLE_CHOICE, rule.singleCount(), rule.singleScore(), sort);
+            sort = draftQuestions(examId, rule.bankId(), MULTIPLE_CHOICE, rule.multipleCount(), rule.multipleScore(), sort);
+        }
+    }
+
+    private int draftQuestions(Long examId, Long bankId, String type, int count, BigDecimal score, int sort) {
         if (count <= 0) {
             return sort;
         }
@@ -392,17 +467,32 @@ public class ExamService {
             question.put("examId", examId);
             question.put("sourceQuestionId", longValue(value(source, "questionId")));
             question.put("type", stringValue(value(source, "type")));
-            question.put("stem", stringValue(value(source, "stem")));
-            question.put("analysis", stringValue(value(source, "analysis")));
             question.put("score", score);
             question.put("sortOrder", sort);
+            examMapper.insertDraftQuestion(question);
+            sort += 10;
+        }
+        return sort;
+    }
+
+    private void rebuildPublishedSnapshot(Long examId) {
+        examMapper.deletePublishedAttachments(examId);
+        examMapper.deletePublishedOptions(examId);
+        examMapper.deletePublishedQuestions(examId);
+        for (Map<String, Object> source : examMapper.findDraftQuestionsForPublish(examId)) {
+            Map<String, Object> question = new HashMap<>();
+            question.put("examId", examId);
+            question.put("sourceQuestionId", longValue(value(source, "questionId")));
+            question.put("type", stringValue(value(source, "type")));
+            question.put("stem", stringValue(value(source, "stem")));
+            question.put("analysis", stringValue(value(source, "analysis")));
+            question.put("score", decimalValue(value(source, "score")));
+            question.put("sortOrder", intValue(value(source, "sortOrder")));
             examMapper.insertPublishedQuestion(question);
             Long publishedQuestionId = longValue(value(question, "id"));
             examMapper.copyPublishedOptions(publishedQuestionId, longValue(value(source, "questionId")));
             examMapper.copyPublishedAttachments(publishedQuestionId, longValue(value(source, "questionId")));
-            sort += 10;
         }
-        return sort;
     }
 
     private void ensureExamAvailable(Exam exam) {
@@ -436,6 +526,44 @@ public class ExamService {
         if (submittedCount >= exam.getAttemptLimit()) {
             throw new BusinessException(ErrorCode.CONFLICT, "已达到本场考试可考次数");
         }
+    }
+
+    private Map<String, Object> findRunningAttempt(Long examId, Long userId) {
+        Map<String, Object> attempt = examMapper.findInProgressAttempt(examId, userId);
+        if (attempt == null) {
+            if (examMapper.countSubmittedAttempts(examId, userId) > 0) {
+                throw new BusinessException(ErrorCode.CONFLICT, "考试已提交，不能重复提交");
+            }
+            throw new BusinessException(ErrorCode.CONFLICT, "考试尚未开始");
+        }
+        return attempt;
+    }
+
+    private void ensureAttemptCanContinue(Exam exam, Map<String, Object> attempt) {
+        if (isAttemptPastDeadline(exam, attempt, Duration.ZERO)) {
+            throw new BusinessException(ErrorCode.CONFLICT, "考试时间已到，不能继续作答");
+        }
+    }
+
+    private boolean isAttemptPastDeadline(Exam exam, Map<String, Object> attempt, Duration grace) {
+        LocalDateTime startedAt = dateTimeValue(value(attempt, "startedAt"));
+        LocalDateTime deadline = startedAt.plusMinutes(exam.getDurationMinutes()).plus(grace);
+        return LocalDateTime.now().isAfter(deadline);
+    }
+
+    private void saveAnswerForAttempt(Long attemptId, Long questionId, List<String> selectedLabels, boolean correct, BigDecimal score) {
+        Map<String, Object> attemptQuestion = examMapper.findAttemptQuestionBySource(attemptId, questionId);
+        if (attemptQuestion == null) {
+            throw new BusinessException(ErrorCode.VALIDATION_FAILED, "题目不属于本次作答");
+        }
+        List<String> selected = normalizedLabels(selectedLabels);
+        examMapper.upsertAnswer(
+                attemptId,
+                longValue(value(attemptQuestion, "id")),
+                String.join(",", selected),
+                correct,
+                score
+        );
     }
 
     private void createAttemptSnapshot(Exam exam, Long attemptId) {
@@ -488,6 +616,7 @@ public class ExamService {
                 stringValue(value(row, "stem")),
                 decimalValue(value(row, "score")),
                 intValue(value(row, "displayOrder")),
+                splitLabels(stringValue(value(row, "selectedLabels"))),
                 examMapper.findAttemptAttachments(attemptQuestionId).stream().map(this::toAttachmentResponse).toList(),
                 examMapper.findAttemptOptions(attemptQuestionId).stream().map(this::toOptionResponse).toList()
         );
@@ -514,8 +643,13 @@ public class ExamService {
 
     private ExamResponse toResponse(Exam exam) {
         List<Map<String, Object>> rules = examMapper.findExamRules(exam.getId());
+        List<Map<String, Object>> paperQuestions = examMapper.findDraftQuestions(exam.getId());
         BigDecimal totalScore = calculateRuleScore(rules);
         int questionCount = calculateRuleCount(rules);
+        if (!paperQuestions.isEmpty()) {
+            totalScore = calculatePaperScore(paperQuestions);
+            questionCount = calculatePaperCount(paperQuestions);
+        }
         BigDecimal publishedScore = examMapper.findPublishedTotalScore(exam.getId());
         int publishedCount = examMapper.countPublishedQuestions(exam.getId());
         if (publishedCount > 0) {
@@ -539,6 +673,7 @@ public class ExamService {
                 exam.getOpenType(),
                 examMapper.findExamDepartmentIds(exam.getId()),
                 rules.stream().map(this::toRuleResponse).toList(),
+                paperQuestions.stream().map(this::toPaperQuestionResponse).toList(),
                 exam.getStatus()
         );
     }
@@ -553,6 +688,18 @@ public class ExamService {
                 decimalValue(value(row, "singleScore")),
                 intValue(value(row, "multipleCount")),
                 decimalValue(value(row, "multipleScore")),
+                intValue(value(row, "sortOrder"))
+        );
+    }
+
+    private ExamPaperQuestionResponse toPaperQuestionResponse(Map<String, Object> row) {
+        return new ExamPaperQuestionResponse(
+                longValue(value(row, "questionId")),
+                longValue(value(row, "bankId")),
+                stringValue(value(row, "bankName")),
+                stringValue(value(row, "type")),
+                stringValue(value(row, "stem")),
+                decimalValue(value(row, "score")),
                 intValue(value(row, "sortOrder"))
         );
     }

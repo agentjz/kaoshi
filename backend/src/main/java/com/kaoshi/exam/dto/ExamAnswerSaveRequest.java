@@ -4,9 +4,8 @@ import jakarta.validation.constraints.NotNull;
 
 import java.util.List;
 
-public record AnswerSubmitItem(
+public record ExamAnswerSaveRequest(
         @NotNull Long questionId,
         @NotNull List<String> selectedLabels
 ) {
 }
-

@@ -34,6 +34,13 @@ test.describe('在线考试', () => {
     await expect(page.locator('audio.question-media__audio[src$="dog-wolf-friendship.mp3"]').first()).toBeVisible()
 
     await page.getByText('B. He goes to school every day.').click()
+    await expect(page.getByText('答案已保存')).toBeVisible()
+    page.once('dialog', (dialog) => {
+      void dialog.accept()
+    })
+    await page.reload()
+    await expect(page.getByText('答题卡')).toBeVisible()
+    await expect(page.locator('.el-radio.is-checked').filter({ hasText: 'B. He goes to school every day.' })).toBeVisible()
     await page.getByRole('button', { name: '下一题' }).click()
     await expect(page.locator('img.question-media__image[src$="improve-card.jpg"]').first()).toBeVisible()
     await expect(page.getByText('单选题').first()).toBeVisible()

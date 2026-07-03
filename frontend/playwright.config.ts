@@ -7,7 +7,7 @@ export default defineConfig({
   reporter: [['list']],
   use: {
     baseURL: 'http://127.0.0.1:5174',
-    headless: true,
+    headless: false,
     trace: 'on-first-retry',
   },
   projects: [

@@ -12,10 +12,13 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.io.ByteArrayOutputStream;
+import java.sql.Timestamp;
+import java.time.LocalDateTime;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
@@ -37,6 +40,9 @@ class ExamBusinessFlowTests {
 
     @Autowired
     private ObjectMapper objectMapper;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
 
     @Test
     void examLifecycleSavesDraftPublishesAndScoresFromAttemptSnapshot() throws Exception {
@@ -182,8 +188,7 @@ class ExamBusinessFlowTests {
                         .content("""
                                 {
                                   "answers": [
-                                    {"questionId": 1, "selectedLabels": ["B"]},
-                                    {"questionId": 2, "selectedLabels": ["A", "C"]}
+                                    {"questionId": 1, "selectedLabels": ["B"]}
                                   ]
                                 }
                                 """))
@@ -234,6 +239,165 @@ class ExamBusinessFlowTests {
                 .isEqualTo(objectMapper.readTree(firstStart).at("/data/attemptId").asLong());
         assertThat(objectMapper.readTree(secondStart).at("/data/questions").toString())
                 .isEqualTo(objectMapper.readTree(firstStart).at("/data/questions").toString());
+    }
+
+    @Test
+    void answerDraftIsSavedToBackendAndRestoredWhenExamRestarts() throws Exception {
+        String token = adminToken();
+
+        String examResponse = createDraftExam(token, 1, """
+                "title": "答案保存读回考试",
+                "description": "用于验证作答防丢",
+                "qualifyScore": 0,
+                "startTime": "2026-01-01T00:00:00",
+                "endTime": "2026-12-31T23:59:59",
+                "durationMinutes": 20,
+                "timeLimit": false,
+                "attemptLimit": null,
+                "displayMode": "PAGED",
+                "questionOrderMode": "FIXED",
+                "openType": "PUBLIC"
+                """);
+        long examId = objectMapper.readTree(examResponse).at("/data/id").asLong();
+        publishExam(token, examId);
+
+        mockMvc.perform(post("/api/exam/{examId}/start", examId)
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.questions[0].selectedLabels.length()").value(0));
+
+        mockMvc.perform(post("/api/exam/{examId}/answers", examId)
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"questionId": 1, "selectedLabels": ["B"]}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.questions[0].selectedLabels[0]").value("B"));
+
+        mockMvc.perform(post("/api/exam/{examId}/start", examId)
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.questions[0].selectedLabels[0]").value("B"));
+    }
+
+    @Test
+    void manualPaperQuestionOrderIsSavedAndUsedByPublishedSnapshot() throws Exception {
+        String token = adminToken();
+
+        String response = mockMvc.perform(post("/api/admin/exams")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "title": "手工排序考试",
+                                  "description": "用于验证题目明细排序",
+                                  "qualifyScore": 0,
+                                  "startTime": "2026-01-01T00:00:00",
+                                  "endTime": "2026-12-31T23:59:59",
+                                  "durationMinutes": 20,
+                                  "timeLimit": false,
+                                  "attemptLimit": null,
+                                  "displayMode": "ALL",
+                                  "questionOrderMode": "FIXED",
+                                  "openType": "PUBLIC",
+                                  "departmentIds": [],
+                                  "rules": [
+                                    {
+                                      "bankId": 1,
+                                      "singleCount": 1,
+                                      "singleScore": 3,
+                                      "multipleCount": 1,
+                                      "multipleScore": 7
+                                    }
+                                  ],
+                                  "paperQuestions": [
+                                    {"questionId": 2, "score": 7, "sortOrder": 10},
+                                    {"questionId": 1, "score": 3, "sortOrder": 20}
+                                  ]
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.paperQuestions[0].questionId").value(2))
+                .andExpect(jsonPath("$.data.paperQuestions[1].questionId").value(1))
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+        long examId = objectMapper.readTree(response).at("/data/id").asLong();
+
+        mockMvc.perform(post("/api/admin/exams/{examId}/publish", examId)
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.questionCount").value(2))
+                .andExpect(jsonPath("$.data.totalScore").value(10));
+
+        mockMvc.perform(post("/api/exam/{examId}/start", examId)
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.questions[0].questionId").value(2))
+                .andExpect(jsonPath("$.data.questions[0].score").value(7))
+                .andExpect(jsonPath("$.data.questions[1].questionId").value(1))
+                .andExpect(jsonPath("$.data.questions[1].score").value(3));
+    }
+
+    @Test
+    void serverLocksAttemptWhenDurationHasExpired() throws Exception {
+        String token = adminToken();
+
+        String examResponse = createDraftExam(token, 1, """
+                "title": "服务端限时考试",
+                "description": "用于验证考试时长",
+                "qualifyScore": 0,
+                "startTime": "2026-01-01T00:00:00",
+                "endTime": "2026-12-31T23:59:59",
+                "durationMinutes": 1,
+                "timeLimit": false,
+                "attemptLimit": null,
+                "displayMode": "PAGED",
+                "questionOrderMode": "FIXED",
+                "openType": "PUBLIC"
+                """);
+        long examId = objectMapper.readTree(examResponse).at("/data/id").asLong();
+        publishExam(token, examId);
+
+        mockMvc.perform(post("/api/exam/{examId}/start", examId)
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk());
+
+        jdbcTemplate.update(
+                "update exam_attempts set started_at = ? where exam_id = ? and user_id = 1 and status = 'IN_PROGRESS'",
+                Timestamp.valueOf(LocalDateTime.now().minusMinutes(2)),
+                examId
+        );
+
+        mockMvc.perform(post("/api/exam/{examId}/answers", examId)
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"questionId": 1, "selectedLabels": ["B"]}
+                                """))
+                .andExpect(status().isConflict());
+
+        mockMvc.perform(post("/api/exam/{examId}/start", examId)
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isConflict());
+
+        mockMvc.perform(post("/api/exam/{examId}/submit", examId)
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "answers": [
+                                    {"questionId": 1, "selectedLabels": ["B"]}
+                                  ]
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.obtainedScore").value(0));
+
+        mockMvc.perform(post("/api/exam/{examId}/start", examId)
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk());
     }
 
     @Test

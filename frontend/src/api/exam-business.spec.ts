@@ -5,7 +5,11 @@ import {
   createExam,
   createQuestion,
   createQuestionBank,
+  createQuestionCategory,
   closeExam,
+  copyExam,
+  deleteQuestionCategory,
+  downloadExamPaper,
   downloadQuestionExport,
   downloadQuestionImportTemplate,
   fetchAdminExamDetail,
@@ -15,12 +19,15 @@ import {
   fetchMyExamResultDetail,
   fetchMyExamResults,
   fetchQuestionBanks,
+  fetchQuestionCategories,
   fetchQuestionDetail,
   importQuestions,
   publishExam,
+  revokeExam,
   saveExamAnswer,
   startExam,
   submitExam,
+  updateQuestionCategory,
   uploadFile,
 } from './exam-business'
 
@@ -29,6 +36,7 @@ vi.mock('./client', () => ({
     get: vi.fn(),
     post: vi.fn(),
     put: vi.fn(),
+    delete: vi.fn(),
   },
 }))
 
@@ -46,9 +54,16 @@ describe('exam business api', () => {
   })
 
   it('writes question paper and exam payloads', async () => {
+    vi.mocked(apiClient.get).mockResolvedValue(ok({}))
     vi.mocked(apiClient.post).mockResolvedValue(ok({}))
+    vi.mocked(apiClient.put).mockResolvedValue(ok({}))
+    vi.mocked(apiClient.delete).mockResolvedValue(ok({}))
 
     await createQuestionBank({ categoryId: 1, name: 'bank', description: '', status: 'ACTIVE' })
+    await fetchQuestionCategories()
+    await createQuestionCategory({ name: 'category', description: '', sortOrder: 10 })
+    await updateQuestionCategory(3, { name: 'category updated', description: 'desc', sortOrder: 20 })
+    await deleteQuestionCategory(4)
     await createQuestion({
       bankId: 1,
       type: 'SINGLE_CHOICE',
@@ -80,6 +95,9 @@ describe('exam business api', () => {
     })
     await fetchAdminExamDetail(1)
     await publishExam(1)
+    await copyExam(1)
+    await downloadExamPaper(1)
+    await revokeExam(1)
     await closeExam(1)
 
     expect(apiClient.post).toHaveBeenCalledWith('/api/admin/question-banks', {
@@ -88,6 +106,18 @@ describe('exam business api', () => {
       description: '',
       status: 'ACTIVE',
     })
+    expect(apiClient.get).toHaveBeenCalledWith('/api/admin/question-banks/categories')
+    expect(apiClient.post).toHaveBeenCalledWith('/api/admin/question-banks/categories', {
+      name: 'category',
+      description: '',
+      sortOrder: 10,
+    })
+    expect(apiClient.put).toHaveBeenCalledWith('/api/admin/question-banks/categories/3', {
+      name: 'category updated',
+      description: 'desc',
+      sortOrder: 20,
+    })
+    expect(apiClient.delete).toHaveBeenCalledWith('/api/admin/question-banks/categories/4')
     expect(apiClient.post).toHaveBeenCalledWith('/api/admin/questions', {
       bankId: 1,
       type: 'SINGLE_CHOICE',
@@ -119,6 +149,9 @@ describe('exam business api', () => {
     })
     expect(apiClient.get).toHaveBeenCalledWith('/api/admin/exams/1')
     expect(apiClient.post).toHaveBeenCalledWith('/api/admin/exams/1/publish')
+    expect(apiClient.post).toHaveBeenCalledWith('/api/admin/exams/1/copy')
+    expect(apiClient.get).toHaveBeenCalledWith('/api/admin/exams/1/download', { responseType: 'blob' })
+    expect(apiClient.post).toHaveBeenCalledWith('/api/admin/exams/1/revoke')
     expect(apiClient.post).toHaveBeenCalledWith('/api/admin/exams/1/close')
   })
 

@@ -9,6 +9,12 @@ export interface NamedCategory {
   sortOrder: number
 }
 
+export interface QuestionCategoryPayload {
+  name: string
+  description: string
+  sortOrder: number
+}
+
 export interface QuestionBank {
   id: number
   categoryId: number
@@ -16,6 +22,9 @@ export interface QuestionBank {
   name: string
   description: string | null
   status: 'ACTIVE' | 'DISABLED'
+  questionCount: number
+  singleChoiceCount: number
+  multipleChoiceCount: number
 }
 
 export interface QuestionBankPayload {
@@ -205,6 +214,20 @@ export async function fetchQuestionCategories(): Promise<NamedCategory[]> {
   return response.data.data
 }
 
+export async function createQuestionCategory(payload: QuestionCategoryPayload): Promise<NamedCategory> {
+  const response = await apiClient.post<ApiResponse<NamedCategory>>('/api/admin/question-banks/categories', payload)
+  return response.data.data
+}
+
+export async function updateQuestionCategory(id: number, payload: QuestionCategoryPayload): Promise<NamedCategory> {
+  const response = await apiClient.put<ApiResponse<NamedCategory>>(`/api/admin/question-banks/categories/${id}`, payload)
+  return response.data.data
+}
+
+export async function deleteQuestionCategory(id: number): Promise<void> {
+  await apiClient.delete<ApiResponse<void>>(`/api/admin/question-banks/categories/${id}`)
+}
+
 export async function fetchQuestionBanks(params: { page: number; size: number; keyword?: string }): Promise<PageResult<QuestionBank>> {
   const response = await apiClient.get<ApiResponse<PageResult<QuestionBank>>>('/api/admin/question-banks', { params })
   return response.data.data
@@ -286,6 +309,21 @@ export async function updateExam(id: number, payload: ExamPayload): Promise<Exam
 
 export async function publishExam(id: number): Promise<Exam> {
   const response = await apiClient.post<ApiResponse<Exam>>(`/api/admin/exams/${id}/publish`)
+  return response.data.data
+}
+
+export async function copyExam(id: number): Promise<Exam> {
+  const response = await apiClient.post<ApiResponse<Exam>>(`/api/admin/exams/${id}/copy`)
+  return response.data.data
+}
+
+export async function downloadExamPaper(id: number): Promise<Blob> {
+  const response = await apiClient.get(`/api/admin/exams/${id}/download`, { responseType: 'blob' })
+  return response.data
+}
+
+export async function revokeExam(id: number): Promise<Exam> {
+  const response = await apiClient.post<ApiResponse<Exam>>(`/api/admin/exams/${id}/revoke`)
   return response.data.data
 }
 

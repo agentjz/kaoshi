@@ -68,11 +68,10 @@ const modules = [
   },
   {
     title: '考试管理',
-    summary: '考务人员按题库、试题、考试三步维护考试内容并发布考试。',
+    summary: '考务人员在题库工作台维护题库和试题，再配置考试并发布。',
     icon: Collection,
     actions: [
       { label: '题库管理', path: '/exam/repo' },
-      { label: '试题管理', path: '/exam/qu' },
       { label: '考试管理', path: '/exam/manage' },
     ],
   },
@@ -90,7 +89,7 @@ const modules = [
 
 const workflows = [
   '先在系统管理维护部门、用户和角色。',
-  '再在考试管理维护题库和试题，富媒体附件在试题编辑页上传或填写 URL。',
+  '再在题库管理维护题库和试题，富媒体附件在试题编辑页上传或填写 URL。',
   '最后在考试管理按题库规则组卷，配置考试时长、可考次数、题目显示方式和开放范围。',
 ]
 </script>

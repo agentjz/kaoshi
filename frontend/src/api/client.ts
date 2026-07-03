@@ -22,13 +22,14 @@ apiClient.interceptors.response.use(
   async (error: AxiosError<{ code?: number; message?: string }>) => {
     const status = error.response?.status
     const message = error.response?.data?.message || error.message || '请求失败'
-    console.error('[kaoshi 接口请求失败]', {
-      method: error.config?.method,
-      url: error.config?.url,
-      status,
-      message,
-      response: error.response?.data,
-    })
+    if (import.meta.env.DEV && !error.response) {
+      console.debug('[kaoshi 接口请求失败]', {
+        method: error.config?.method,
+        url: error.config?.url,
+        status,
+        message,
+      })
+    }
     if (status === 401) {
       const auth = useAuthStore()
       auth.clearSession()

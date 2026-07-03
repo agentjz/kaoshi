@@ -61,9 +61,12 @@
           <el-tag :type="statusType(row.status)">{{ statusText(row.status) }}</el-tag>
         </template>
       </el-table-column>
-      <el-table-column fixed="right" label="操作" width="130">
+      <el-table-column fixed="right" label="操作" width="260">
         <template #default="{ row }: { row: Exam }">
           <el-button link type="primary" @click="openEditEditor(row)">编辑</el-button>
+          <el-button link type="primary" @click="copyCurrentExam(row)">复制</el-button>
+          <el-button link type="primary" @click="downloadCurrentExam(row)">下载</el-button>
+          <el-button v-if="row.status === 'PUBLISHED'" link type="warning" @click="revokeCurrentExam(row)">撤销发布</el-button>
         </template>
       </el-table-column>
     </el-table>
@@ -131,8 +134,38 @@
         <section class="publish-section">
           <div class="publish-section__head">
             <h2>题目明细</h2>
-            <el-button @click="generatePaperQuestions">生成题目明细</el-button>
+            <div class="header-actions">
+              <el-button @click="generatePaperQuestions">按规则生成</el-button>
+              <el-button :disabled="paperQuestions.length === 0" @click="previewVisible = true">预览试卷</el-button>
+            </div>
           </div>
+
+          <div class="manual-picker">
+            <div class="manual-picker__toolbar">
+              <el-select v-model="picker.bankId" filterable placeholder="选择题库" @change="loadPickerQuestions">
+                <el-option v-for="bank in banks" :key="bank.id" :label="`${bank.name}（${bank.questionCount}题）`" :value="bank.id" />
+              </el-select>
+              <el-input v-model.trim="picker.keyword" clearable placeholder="搜索题干" @keyup.enter="loadPickerQuestions" />
+              <el-button :icon="Search" @click="loadPickerQuestions">加载试题</el-button>
+            </div>
+            <el-table v-if="pickerQuestions.length" v-loading="pickerLoading" :data="pickerQuestions" border class="picker-table">
+              <el-table-column prop="stem" label="可选试题" min-width="260" show-overflow-tooltip />
+              <el-table-column label="题型" width="100">
+                <template #default="{ row }: { row: Question }">
+                  <el-tag effect="plain">{{ questionTypeText(row.type) }}</el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column label="题库" width="160" prop="bankName" />
+              <el-table-column label="操作" width="110">
+                <template #default="{ row }: { row: Question }">
+                  <el-button link type="primary" :disabled="hasPaperQuestion(row.id)" @click="addManualQuestion(row)">
+                    {{ hasPaperQuestion(row.id) ? '已加入' : '加入试卷' }}
+                  </el-button>
+                </template>
+              </el-table-column>
+            </el-table>
+          </div>
+
           <el-empty v-if="paperQuestions.length === 0" description="保存或发布前会按组卷规则生成题目明细" />
           <el-table v-else :data="paperQuestions" border class="paper-table">
             <el-table-column label="顺序" width="110">
@@ -164,6 +197,11 @@
               <template #default="{ $index }: { $index: number }">
                 <el-button link :disabled="$index === 0" @click="movePaperQuestion($index, -1)">上移</el-button>
                 <el-button link :disabled="$index === paperQuestions.length - 1" @click="movePaperQuestion($index, 1)">下移</el-button>
+              </template>
+            </el-table-column>
+            <el-table-column label="操作" width="90">
+              <template #default="{ $index }: { $index: number }">
+                <el-button link type="danger" @click="removePaperQuestion($index)">移除</el-button>
               </template>
             </el-table-column>
           </el-table>
@@ -253,23 +291,38 @@
         </div>
       </template>
     </el-dialog>
+
+    <el-dialog v-model="previewVisible" title="试卷预览" width="min(920px, 94vw)">
+      <div class="paper-preview">
+        <article v-for="(question, index) in paperQuestions" :key="question.questionId" class="preview-question">
+          <header>
+            <strong>{{ index + 1 }}. {{ question.stem }}</strong>
+            <el-tag effect="plain">{{ questionTypeText(question.type) }} · {{ question.score }} 分</el-tag>
+          </header>
+          <span class="muted-text">{{ question.bankName }}</span>
+        </article>
+      </div>
+    </el-dialog>
   </section>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
-import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
+import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { Plus, Search } from '@element-plus/icons-vue'
 
 import { fetchDepartments, type Department } from '@/api/admin'
 import {
   closeExam,
+  copyExam,
   createExam,
+  downloadExamPaper,
   fetchAdminExamDetail,
   fetchAdminExams,
   fetchQuestionBanks,
   fetchQuestions,
   publishExam,
+  revokeExam,
   updateExam,
   type Exam,
   type ExamPaperQuestion,
@@ -277,6 +330,7 @@ import {
   type Question,
   type QuestionBank,
 } from '@/api/exam-business'
+import { downloadBlob } from '@/utils/download'
 import { formatDateTime } from '@/utils/datetime'
 
 interface ExamRuleForm {
@@ -314,12 +368,15 @@ const departments = ref<Department[]>([])
 const bankQuestions = ref<Record<number, Question[]>>({})
 const ruleset = ref<ExamRuleForm[]>([])
 const paperQuestions = ref<ExamPaperQuestionForm[]>([])
+const pickerQuestions = ref<Question[]>([])
 const paperStale = ref(false)
 const total = ref(0)
 const loading = ref(false)
 const saving = ref(false)
 const publishing = ref(false)
 const closing = ref(false)
+const pickerLoading = ref(false)
+const previewVisible = ref(false)
 const editorVisible = ref(false)
 const editingExam = ref<Exam | null>(null)
 const currentStatus = ref<Exam['status']>('DRAFT')
@@ -327,6 +384,7 @@ const formRef = ref<FormInstance>()
 const timeRange = ref<[string, string]>(['2026-01-01T00:00:00', '2026-12-31T23:59:59'])
 const attemptLimitMode = ref<'UNLIMITED' | 'LIMITED'>('UNLIMITED')
 const limitedAttemptCount = ref(1)
+const picker = reactive({ bankId: null as number | null, keyword: '' })
 
 const query = reactive({ page: 1, size: 20, keyword: '' })
 const form = reactive<ExamPayload>({
@@ -375,6 +433,7 @@ onMounted(async () => {
 async function loadBanks() {
   const result = await fetchQuestionBanks({ page: 1, size: 200 })
   banks.value = result.records
+  picker.bankId = picker.bankId || banks.value[0]?.id || null
 }
 
 async function loadDepartments() {
@@ -456,7 +515,9 @@ function resetForm() {
   form.rules = []
   form.paperQuestions = []
   paperQuestions.value = []
+  pickerQuestions.value = []
   paperStale.value = false
+  previewVisible.value = false
   currentStatus.value = 'DRAFT'
   attemptLimitMode.value = 'UNLIMITED'
   limitedAttemptCount.value = 1
@@ -498,6 +559,7 @@ async function loadBankQuestions(bankId: number | null) {
 
 async function onRuleBankChange(bankId: number | null) {
   await loadBankQuestions(bankId)
+  picker.bankId = bankId || picker.bankId
   markPaperStale()
 }
 
@@ -546,6 +608,52 @@ async function generatePaperQuestions() {
   paperStale.value = false
 }
 
+async function loadPickerQuestions() {
+  if (!picker.bankId) {
+    pickerQuestions.value = []
+    return
+  }
+  pickerLoading.value = true
+  try {
+    const result = await fetchQuestions({
+      page: 1,
+      size: 100,
+      bankId: picker.bankId,
+      keyword: picker.keyword || undefined,
+    })
+    pickerQuestions.value = result.records.filter((question) => question.status === 'ACTIVE')
+  } finally {
+    pickerLoading.value = false
+  }
+}
+
+function addManualQuestion(question: Question) {
+  if (hasPaperQuestion(question.id)) {
+    return
+  }
+  paperQuestions.value = normalizePaperSort([
+    ...paperQuestions.value,
+    toGeneratedPaperQuestion(question, defaultManualScore(question.type), (paperQuestions.value.length + 1) * 10),
+  ])
+}
+
+function hasPaperQuestion(questionId: number) {
+  return paperQuestions.value.some((question) => question.questionId === questionId)
+}
+
+function defaultManualScore(type: Question['type']) {
+  const matchedRule = ruleset.value.find((rule) => {
+    if (!rule.bankId || rule.bankId !== picker.bankId) {
+      return false
+    }
+    return type === 'SINGLE_CHOICE' ? rule.singleScore > 0 : rule.multipleScore > 0
+  })
+  if (!matchedRule) {
+    return 5
+  }
+  return type === 'SINGLE_CHOICE' ? matchedRule.singleScore : matchedRule.multipleScore
+}
+
 function toGeneratedPaperQuestion(question: Question, score: number, sortOrder: number): ExamPaperQuestionForm {
   return {
     questionId: question.id,
@@ -583,6 +691,12 @@ function movePaperQuestion(index: number, offset: number) {
 
 function sortPaperQuestions() {
   paperQuestions.value = normalizePaperSort([...paperQuestions.value].sort((left, right) => left.sortOrder - right.sortOrder))
+}
+
+function removePaperQuestion(index: number) {
+  const rows = [...paperQuestions.value]
+  rows.splice(index, 1)
+  paperQuestions.value = normalizePaperSort(rows)
 }
 
 function normalizePaperSort(rows: ExamPaperQuestionForm[]) {
@@ -641,6 +755,29 @@ async function closeCurrentExam() {
   }
 }
 
+async function copyCurrentExam(exam: Exam) {
+  const copied = await copyExam(exam.id)
+  ElMessage.success('试卷已复制')
+  await loadExams()
+  await openEditEditor(copied)
+}
+
+async function downloadCurrentExam(exam: Exam) {
+  const blob = await downloadExamPaper(exam.id)
+  downloadBlob(blob, `${exam.title}.xlsx`)
+}
+
+async function revokeCurrentExam(exam: Exam) {
+  await ElMessageBox.confirm(`确认撤销发布“${exam.title}”？`, '撤销发布', {
+    type: 'warning',
+    confirmButtonText: '撤销发布',
+    cancelButtonText: '取消',
+  })
+  await revokeExam(exam.id)
+  ElMessage.success('考试已撤销发布')
+  await loadExams()
+}
+
 async function buildPayload(): Promise<ExamPayload | null> {
   for (const rule of ruleset.value) {
     await loadBankQuestions(rule.bankId)
@@ -654,15 +791,11 @@ async function buildPayload(): Promise<ExamPayload | null> {
       multipleCount: rule.multipleCount,
       multipleScore: rule.multipleCount === 0 ? 0 : rule.multipleScore,
     }))
-  if (payloadRules.length === 0) {
-    ElMessage.error('请至少添加一个题库规则')
-    return null
-  }
-  if (paperQuestions.value.length === 0 || paperStale.value) {
+  if (paperQuestions.value.length === 0 && payloadRules.length > 0) {
     await generatePaperQuestions()
   }
   if (paperQuestions.value.length === 0) {
-    ElMessage.error('请先生成题目明细')
+    ElMessage.error('请先按规则生成题目明细或手工加入试题')
     return null
   }
   if (form.qualifyScore > totalScore.value) {
@@ -821,10 +954,60 @@ function questionTypeText(type: Question['type']) {
   width: 100%;
 }
 
+.manual-picker {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.manual-picker__toolbar {
+  display: grid;
+  grid-template-columns: minmax(180px, 260px) minmax(220px, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  min-width: 0;
+}
+
+.manual-picker__toolbar :deep(.el-select) {
+  width: 100%;
+}
+
+.picker-table {
+  width: 100%;
+}
+
 .paper-stem {
   display: block;
   overflow-wrap: anywhere;
   line-height: 1.5;
+}
+
+.paper-preview {
+  display: grid;
+  gap: 12px;
+  max-height: min(70vh, 680px);
+  overflow: auto;
+}
+
+.preview-question {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--ks-border);
+}
+
+.preview-question header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+}
+
+.preview-question strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .publish-form-grid {
@@ -854,7 +1037,8 @@ function questionTypeText(type: Question['type']) {
 @media (max-width: 900px) {
   .publish-summary,
   .rule-fields,
-  .publish-form-grid {
+  .publish-form-grid,
+  .manual-picker__toolbar {
     grid-template-columns: 1fr;
   }
 

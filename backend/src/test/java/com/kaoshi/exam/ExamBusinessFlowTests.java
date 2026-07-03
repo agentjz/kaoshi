@@ -22,8 +22,10 @@ import java.time.LocalDateTime;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.startsWith;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -341,6 +343,62 @@ class ExamBusinessFlowTests {
     }
 
     @Test
+    void examPaperOperationsSupportCopyDownloadAndRevokeBoundary() throws Exception {
+        String token = adminToken();
+
+        String response = createDraftExam(token, 1, """
+                "title": "试卷操作考试",
+                "description": "用于验证复制下载撤销",
+                "qualifyScore": 0,
+                "startTime": "2026-01-01T00:00:00",
+                "endTime": "2026-12-31T23:59:59",
+                "durationMinutes": 20,
+                "timeLimit": false,
+                "attemptLimit": null,
+                "displayMode": "ALL",
+                "questionOrderMode": "FIXED",
+                "openType": "PUBLIC"
+                """);
+        long examId = objectMapper.readTree(response).at("/data/id").asLong();
+        publishExam(token, examId);
+
+        mockMvc.perform(get("/api/admin/exams/{examId}/download", examId)
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(result -> {
+                    try (Workbook workbook = new XSSFWorkbook(new java.io.ByteArrayInputStream(result.getResponse().getContentAsByteArray()))) {
+                        Sheet sheet = workbook.getSheetAt(0);
+                        assertThat(sheet.getSheetName()).isEqualTo("试卷");
+                        assertThat(sheet.getRow(0).getCell(0).getStringCellValue()).isEqualTo("顺序");
+                        assertThat(sheet.getRow(1).getCell(4).getStringCellValue()).isNotBlank();
+                        assertThat(sheet.getRow(1).getCell(5).getStringCellValue()).isNotBlank();
+                    }
+                });
+
+        mockMvc.perform(post("/api/admin/exams/{examId}/copy", examId)
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("DRAFT"))
+                .andExpect(jsonPath("$.data.title").value("试卷操作考试 副本"))
+                .andExpect(jsonPath("$.data.paperQuestions.length()").value(1));
+
+        mockMvc.perform(post("/api/admin/exams/{examId}/revoke", examId)
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("DRAFT"));
+
+        publishExam(token, examId);
+        mockMvc.perform(post("/api/exam/{examId}/start", examId)
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/admin/exams/{examId}/revoke", examId)
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.message").value(containsString("已有作答记录")));
+    }
+
+    @Test
     void serverLocksAttemptWhenDurationHasExpired() throws Exception {
         String token = adminToken();
 
@@ -427,6 +485,91 @@ class ExamBusinessFlowTests {
     }
 
     @Test
+    void questionCategoryLifecycleSupportsBankOwnershipAndEmptyDeletionOnly() throws Exception {
+        String token = adminToken();
+        String categoryName = "后端分类" + System.currentTimeMillis();
+
+        String categoryResponse = mockMvc.perform(post("/api/admin/question-banks/categories")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "name": "%s",
+                                  "description": "分类生命周期测试",
+                                  "sortOrder": 30
+                                }
+                                """.formatted(categoryName)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.name").value(categoryName))
+                .andExpect(jsonPath("$.data.sortOrder").value(30))
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+        long categoryId = objectMapper.readTree(categoryResponse).at("/data/id").asLong();
+
+        mockMvc.perform(put("/api/admin/question-banks/categories/{id}", categoryId)
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "name": "%s-更新",
+                                  "description": "分类已更新",
+                                  "sortOrder": 40
+                                }
+                                """.formatted(categoryName)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.name").value(categoryName + "-更新"))
+                .andExpect(jsonPath("$.data.description").value("分类已更新"));
+
+        String bankName = "分类归属题库" + System.currentTimeMillis();
+        mockMvc.perform(post("/api/admin/question-banks")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "categoryId": %d,
+                                  "name": "%s",
+                                  "description": "验证题库归属分类",
+                                  "status": "ACTIVE"
+                                }
+                                """.formatted(categoryId, bankName)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.categoryId").value(categoryId))
+                .andExpect(jsonPath("$.data.categoryName").value(categoryName + "-更新"))
+                .andExpect(jsonPath("$.data.name").value(bankName));
+
+        mockMvc.perform(delete("/api/admin/question-banks/categories/{id}", categoryId)
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.message").value(containsString("分类下存在题库")));
+
+        String emptyCategoryResponse = mockMvc.perform(post("/api/admin/question-banks/categories")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "name": "%s-空",
+                                  "description": "",
+                                  "sortOrder": 50
+                                }
+                                """.formatted(categoryName)))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+        long emptyCategoryId = objectMapper.readTree(emptyCategoryResponse).at("/data/id").asLong();
+
+        mockMvc.perform(delete("/api/admin/question-banks/categories/{id}", emptyCategoryId)
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/admin/question-banks/categories")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[*].name").value(hasItems(categoryName + "-更新")));
+    }
+
+    @Test
     void fileUploadStoresRealMediaAndReturnsAttachmentPayload() throws Exception {
         String token = adminToken();
         MockMultipartFile file = new MockMultipartFile(
@@ -472,6 +615,13 @@ class ExamBusinessFlowTests {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.records[0].stem").value("Excel import listening question"))
                 .andExpect(jsonPath("$.data.records[0].attachments.length()").value(0));
+
+        mockMvc.perform(get("/api/admin/question-banks?page=1&size=20&keyword=英语基础题库")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.records[0].questionCount").value(greaterThanOrEqualTo(1)))
+                .andExpect(jsonPath("$.data.records[0].singleChoiceCount").value(greaterThanOrEqualTo(1)))
+                .andExpect(jsonPath("$.data.records[0].multipleChoiceCount").value(greaterThanOrEqualTo(1)));
 
         mockMvc.perform(get("/api/admin/questions/export")
                         .header("Authorization", "Bearer " + token))

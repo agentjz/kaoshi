@@ -115,7 +115,15 @@ class AdminManagementControllerTests {
                     try (Workbook workbook = new XSSFWorkbook(new java.io.ByteArrayInputStream(result.getResponse().getContentAsByteArray()))) {
                         assertThat(workbook.getNumberOfSheets()).isEqualTo(2);
                         assertThat(workbook.getSheetAt(0).getSheetName()).isEqualTo("用户导入");
-                        assertThat(workbook.getSheetAt(1).getSheetName()).isEqualTo("字典清单");
+                        Sheet dictionary = workbook.getSheetAt(1);
+                        assertThat(dictionary.getSheetName()).isEqualTo("字典清单");
+                        assertThat(dictionary.getRow(0).getCell(0).getStringCellValue()).isEqualTo("字段");
+                        assertThat(dictionary.getRow(0).getCell(1).getStringCellValue()).isEqualTo("可填写值");
+                        assertThat(dictionary.getRow(1).getCell(0).getStringCellValue()).isEqualTo("部门");
+                        assertThat(dictionary.getRow(1).getCell(1).getStringCellValue()).isEqualTo("默认组织");
+                        assertThat(sheetContainsDictionaryRow(dictionary, "角色", "ADMIN")).isTrue();
+                        assertThat(sheetContainsDictionaryRow(dictionary, "状态", "ACTIVE")).isTrue();
+                        assertThat(dictionary.getLastRowNum()).isGreaterThan(4);
                     }
                 });
 
@@ -297,6 +305,19 @@ class AdminManagementControllerTests {
             workbook.write(output);
             return output.toByteArray();
         }
+    }
+
+    private boolean sheetContainsDictionaryRow(Sheet sheet, String field, String code) {
+        for (int rowIndex = 1; rowIndex <= sheet.getLastRowNum(); rowIndex++) {
+            Row row = sheet.getRow(rowIndex);
+            if (row == null) {
+                continue;
+            }
+            if (field.equals(row.getCell(0).getStringCellValue()) && code.equals(row.getCell(2).getStringCellValue())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private String adminToken() throws Exception {

@@ -40,12 +40,6 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '题库管理' },
       },
       {
-        path: 'exam/qu',
-        name: 'admin-questions',
-        component: () => import('@/views/admin/questions/QuestionsView.vue'),
-        meta: { title: '试题管理' },
-      },
-      {
         path: 'exam/manage',
         name: 'admin-exams',
         component: () => import('@/views/admin/exams/ExamsView.vue'),

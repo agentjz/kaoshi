@@ -29,7 +29,6 @@
             <span>考试管理</span>
           </template>
           <el-menu-item index="/exam/repo">题库管理</el-menu-item>
-          <el-menu-item index="/exam/qu">试题管理</el-menu-item>
           <el-menu-item index="/exam/manage">考试管理</el-menu-item>
         </el-sub-menu>
 

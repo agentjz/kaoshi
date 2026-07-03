@@ -33,7 +33,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.HashSet;
 import java.util.Map;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Service
@@ -87,12 +86,8 @@ public class AdminUserService {
                         ),
                         new ExcelWorkbooks.SheetData(
                                 "字典清单",
-                                List.of("字段", "可用值"),
-                                List.of(
-                                        List.of("部门", departmentMapper.findAll().stream().map(Department::getName).collect(Collectors.joining("、"))),
-                                        List.of("角色", adminRoleMapper.findAll().stream().map(role -> role.getName() + "(" + role.getCode() + ")").collect(Collectors.joining("、"))),
-                                        List.of("状态", "启用、禁用")
-                                )
+                                List.of("字段", "可填写值", "编码", "说明"),
+                                userDictionaryRows()
                         )
                 )
         );
@@ -109,12 +104,8 @@ public class AdminUserService {
                         new ExcelWorkbooks.SheetData("用户导出", List.of("账号", "姓名", "部门", "角色", "状态"), rows),
                         new ExcelWorkbooks.SheetData(
                                 "字典清单",
-                                List.of("字段", "可用值"),
-                                List.of(
-                                        List.of("部门", departmentMapper.findAll().stream().map(Department::getName).collect(Collectors.joining("、"))),
-                                        List.of("角色", adminRoleMapper.findAll().stream().map(role -> role.getName() + "(" + role.getCode() + ")").collect(Collectors.joining("、"))),
-                                        List.of("状态", "启用、禁用")
-                                )
+                                List.of("字段", "可填写值", "编码", "说明"),
+                                userDictionaryRows()
                         )
                 )
         );
@@ -277,6 +268,25 @@ public class AdminUserService {
             return "DISABLED";
         }
         throw new BusinessException(ErrorCode.VALIDATION_FAILED, "用户状态不合法：" + value);
+    }
+
+    private List<List<String>> userDictionaryRows() {
+        List<List<String>> rows = new ArrayList<>();
+        departmentMapper.findAll().forEach(department -> rows.add(List.of(
+                "部门",
+                department.getName(),
+                department.getCode(),
+                department.getDescription() == null ? "" : department.getDescription()
+        )));
+        adminRoleMapper.findAll().forEach(role -> rows.add(List.of(
+                "角色",
+                role.getName(),
+                role.getCode(),
+                role.getDescription() == null ? "" : role.getDescription()
+        )));
+        rows.add(List.of("状态", "启用", "ACTIVE", "导入创建启用账号"));
+        rows.add(List.of("状态", "禁用", "DISABLED", "模板列出可用状态；导入创建只允许启用账号"));
+        return rows;
     }
 
     private List<String> exportRow(UserAccount user) {

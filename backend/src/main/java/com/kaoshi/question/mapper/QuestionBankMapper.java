@@ -2,6 +2,7 @@ package com.kaoshi.question.mapper;
 
 import com.kaoshi.question.domain.QuestionBank;
 import com.kaoshi.question.domain.QuestionCategory;
+import org.apache.ibatis.annotations.Delete;
 import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Options;
@@ -16,8 +17,20 @@ public interface QuestionBankMapper {
     @Select("select * from question_categories order by sort_order, id")
     List<QuestionCategory> findCategories();
 
+    @Select("select * from question_categories where id = #{id}")
+    QuestionCategory findCategoryById(@Param("id") Long id);
+
     @Select("select count(*) from question_categories where id = #{id}")
     long countCategoryById(@Param("id") Long id);
+
+    @Select("select count(*) from question_categories where name = #{name}")
+    int countCategoryByName(@Param("name") String name);
+
+    @Select("select count(*) from question_categories where name = #{name} and id <> #{id}")
+    int countCategoryByNameExceptId(@Param("name") String name, @Param("id") Long id);
+
+    @Select("select count(*) from question_banks where category_id = #{categoryId}")
+    int countBanksByCategory(@Param("categoryId") Long categoryId);
 
     @Select("""
             select count(*)
@@ -42,6 +55,32 @@ public interface QuestionBankMapper {
 
     @Select("select name from question_categories where id = #{id}")
     String findCategoryName(@Param("id") Long id);
+
+    @Select("select count(*) from questions where bank_id = #{bankId}")
+    int countQuestionsByBank(@Param("bankId") Long bankId);
+
+    @Select("select count(*) from questions where bank_id = #{bankId} and type = #{type}")
+    int countQuestionsByBankAndType(@Param("bankId") Long bankId, @Param("type") String type);
+
+    @Insert("""
+            insert into question_categories (name, description, sort_order)
+            values (#{name}, #{description}, #{sortOrder})
+            """)
+    @Options(useGeneratedKeys = true, keyProperty = "id")
+    void insertCategory(QuestionCategory category);
+
+    @Update("""
+            update question_categories
+            set name = #{name},
+                description = #{description},
+                sort_order = #{sortOrder},
+                updated_at = current_timestamp
+            where id = #{id}
+            """)
+    int updateCategory(QuestionCategory category);
+
+    @Delete("delete from question_categories where id = #{id}")
+    int deleteCategory(@Param("id") Long id);
 
     @Insert("""
             insert into question_banks (category_id, name, description, status)

@@ -313,8 +313,7 @@ join question_attachments qa on qa.question_id = epq.source_question_id;
 insert into menus (id, code, title, path, parent_id, sort_order, icon)
 values
   (6, 'question-banks', '题库管理', '/exam/repo', null, 60, 'Collection'),
-  (7, 'questions', '试题管理', '/exam/qu', null, 70, 'Document'),
-  (8, 'exams', '考试管理', '/exam/manage', null, 80, 'Timer');
+  (7, 'exams', '考试管理', '/exam/manage', null, 70, 'Timer');
 
 insert into role_menus (role_id, menu_id)
-select 1, id from menus where id between 6 and 8;
+select 1, id from menus where id in (6, 7);

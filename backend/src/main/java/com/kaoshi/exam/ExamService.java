@@ -2,6 +2,7 @@ package com.kaoshi.exam;
 
 import com.kaoshi.common.api.ErrorCode;
 import com.kaoshi.common.exception.BusinessException;
+import com.kaoshi.common.excel.ExcelWorkbooks;
 import com.kaoshi.common.page.PageRequest;
 import com.kaoshi.common.page.PageResponse;
 import com.kaoshi.exam.domain.Exam;
@@ -22,6 +23,7 @@ import com.kaoshi.exam.dto.ExamSessionResponse;
 import com.kaoshi.exam.dto.ExamSubmitRequest;
 import com.kaoshi.exam.mapper.ExamMapper;
 import com.kaoshi.question.dto.QuestionAttachmentResponse;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -100,6 +102,61 @@ public class ExamService {
     public ExamResponse close(Long id) {
         findExam(id);
         examMapper.updateExamStatus(id, "CLOSED");
+        return detail(id);
+    }
+
+    @Transactional
+    public ExamResponse copy(Long id) {
+        Exam source = findExam(id);
+        Exam target = new Exam();
+        target.setTitle(source.getTitle() + " 副本");
+        target.setDescription(source.getDescription());
+        target.setQualifyScore(source.getQualifyScore());
+        target.setStartTime(source.getStartTime());
+        target.setEndTime(source.getEndTime());
+        target.setDurationMinutes(source.getDurationMinutes());
+        target.setTimeLimit(source.getTimeLimit());
+        target.setAttemptLimit(source.getAttemptLimit());
+        target.setDisplayMode(source.getDisplayMode());
+        target.setQuestionOrderMode(source.getQuestionOrderMode());
+        target.setOpenType(source.getOpenType());
+        target.setStatus("DRAFT");
+        examMapper.insertExam(target);
+        replaceExamDepartments(target.getId(), examMapper.findExamDepartmentIds(id));
+        copyRules(id, target.getId());
+        copyPaperQuestions(id, target.getId());
+        return detail(target.getId());
+    }
+
+    public ResponseEntity<byte[]> download(Long id) {
+        Exam exam = findExam(id);
+        List<Map<String, Object>> rows = !examMapper.findPublishedQuestions(id).isEmpty()
+                ? examMapper.findPublishedQuestions(id)
+                : examMapper.findDraftQuestions(id);
+        if (rows.isEmpty()) {
+            throw new BusinessException(ErrorCode.VALIDATION_FAILED, "试卷没有题目明细，无法下载");
+        }
+        return ExcelWorkbooks.template(
+                exam.getTitle() + ".xlsx",
+                "试卷",
+                List.of("顺序", "题库", "题型", "分值", "题干", "正确答案", "解析", "选项"),
+                rows.stream().map(this::paperExportRow).toList()
+        );
+    }
+
+    @Transactional
+    public ExamResponse revoke(Long id) {
+        Exam exam = findExam(id);
+        if (!"PUBLISHED".equals(exam.getStatus())) {
+            throw new BusinessException(ErrorCode.CONFLICT, "只有已发布考试可以撤销发布");
+        }
+        if (examMapper.countAttemptsByExam(id) > 0 || examMapper.countResultsByExam(id) > 0) {
+            throw new BusinessException(ErrorCode.CONFLICT, "考试已有作答记录，不能撤销发布");
+        }
+        examMapper.deletePublishedAttachments(id);
+        examMapper.deletePublishedOptions(id);
+        examMapper.deletePublishedQuestions(id);
+        examMapper.updateExamStatus(id, "DRAFT");
         return detail(id);
     }
 
@@ -275,9 +332,6 @@ public class ExamService {
     }
 
     private void validatePublish(Exam exam, List<Map<String, Object>> rules) {
-        if (rules.isEmpty()) {
-            throw new BusinessException(ErrorCode.VALIDATION_FAILED, "发布考试必须配置组卷规则");
-        }
         if ("DEPARTMENT".equals(exam.getOpenType()) && examMapper.findExamDepartmentIds(exam.getId()).isEmpty()) {
             throw new BusinessException(ErrorCode.VALIDATION_FAILED, "部门开放必须选择部门");
         }
@@ -304,6 +358,80 @@ public class ExamService {
         if (exam.getQualifyScore().compareTo(totalScore) > 0) {
             throw new BusinessException(ErrorCode.VALIDATION_FAILED, "及格分不能超过试卷总分");
         }
+    }
+
+    private void copyRules(Long sourceExamId, Long targetExamId) {
+        for (Map<String, Object> source : examMapper.findExamRules(sourceExamId)) {
+            Map<String, Object> rule = new HashMap<>();
+            rule.put("examId", targetExamId);
+            rule.put("bankId", longValue(value(source, "bankId")));
+            rule.put("singleCount", intValue(value(source, "singleCount")));
+            rule.put("singleScore", decimalValue(value(source, "singleScore")));
+            rule.put("multipleCount", intValue(value(source, "multipleCount")));
+            rule.put("multipleScore", decimalValue(value(source, "multipleScore")));
+            rule.put("sortOrder", intValue(value(source, "sortOrder")));
+            examMapper.insertExamRule(rule);
+        }
+    }
+
+    private void copyPaperQuestions(Long sourceExamId, Long targetExamId) {
+        List<Map<String, Object>> sourceQuestions = examMapper.findDraftQuestions(sourceExamId);
+        if (sourceQuestions.isEmpty()) {
+            sourceQuestions = examMapper.findPublishedQuestions(sourceExamId);
+        }
+        for (Map<String, Object> source : sourceQuestions) {
+            Long sourceQuestionId = value(source, "questionId") == null
+                    ? longValue(value(source, "sourceQuestionId"))
+                    : longValue(value(source, "questionId"));
+            Map<String, Object> question = new HashMap<>();
+            question.put("examId", targetExamId);
+            question.put("sourceQuestionId", sourceQuestionId);
+            question.put("type", stringValue(value(source, "type")));
+            question.put("score", decimalValue(value(source, "score")));
+            question.put("sortOrder", intValue(value(source, "sortOrder")));
+            examMapper.insertDraftQuestion(question);
+        }
+    }
+
+    private List<String> paperExportRow(Map<String, Object> row) {
+        boolean publishedRow = row.containsKey("sourceQuestionId") || row.containsKey("source_question_id") || row.containsKey("SOURCE_QUESTION_ID");
+        Long questionId = value(row, "questionId") == null ? longValue(value(row, "sourceQuestionId")) : longValue(value(row, "questionId"));
+        List<Map<String, Object>> options = publishedRow
+                ? examMapper.findPublishedOptions(longValue(value(row, "id")))
+                : examMapper.findSourceOptions(questionId);
+        return List.of(
+                String.valueOf(intValue(value(row, "sortOrder"))),
+                safeString(value(row, "bankName")),
+                questionTypeName(stringValue(value(row, "type"))),
+                decimalValue(value(row, "score")).stripTrailingZeros().toPlainString(),
+                safeString(value(row, "stem")),
+                correctLabels(options),
+                safeString(value(row, "analysis")),
+                optionText(options)
+        );
+    }
+
+    private String correctLabels(List<Map<String, Object>> options) {
+        return options.stream()
+                .filter(option -> booleanValue(value(option, "correct")))
+                .map(option -> stringValue(value(option, "label")))
+                .reduce((left, right) -> left + "," + right)
+                .orElse("");
+    }
+
+    private String optionText(List<Map<String, Object>> options) {
+        return options.stream()
+                .map(option -> stringValue(value(option, "label")) + ". " + stringValue(value(option, "content")))
+                .reduce((left, right) -> left + "\n" + right)
+                .orElse("");
+    }
+
+    private String questionTypeName(String type) {
+        return MULTIPLE_CHOICE.equals(type) ? "多选题" : "单选题";
+    }
+
+    private String safeString(Object value) {
+        return value == null ? "" : value.toString();
     }
 
     private BigDecimal calculatePaperScore(List<Map<String, Object>> paperQuestions) {

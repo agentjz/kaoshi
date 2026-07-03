@@ -6,7 +6,10 @@ public record QuestionBankResponse(
         String categoryName,
         String name,
         String description,
-        String status
+        String status,
+        Integer questionCount,
+        Integer singleChoiceCount,
+        Integer multipleChoiceCount
 ) {
 }
 

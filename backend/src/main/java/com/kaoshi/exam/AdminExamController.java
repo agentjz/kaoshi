@@ -6,6 +6,7 @@ import com.kaoshi.common.page.PageResponse;
 import com.kaoshi.exam.dto.ExamResponse;
 import com.kaoshi.exam.dto.ExamSaveRequest;
 import jakarta.validation.Valid;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -53,6 +54,21 @@ public class AdminExamController {
     @PostMapping("/{id}/publish")
     public ApiResponse<ExamResponse> publish(@PathVariable Long id) {
         return ApiResponse.ok(examService.publish(id));
+    }
+
+    @PostMapping("/{id}/copy")
+    public ApiResponse<ExamResponse> copy(@PathVariable Long id) {
+        return ApiResponse.ok(examService.copy(id));
+    }
+
+    @GetMapping("/{id}/download")
+    public ResponseEntity<byte[]> download(@PathVariable Long id) {
+        return examService.download(id);
+    }
+
+    @PostMapping("/{id}/revoke")
+    public ApiResponse<ExamResponse> revoke(@PathVariable Long id) {
+        return ApiResponse.ok(examService.revoke(id));
     }
 
     @PostMapping("/{id}/close")

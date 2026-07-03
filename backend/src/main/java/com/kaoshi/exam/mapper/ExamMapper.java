@@ -60,6 +60,12 @@ public interface ExamMapper {
     @Update("update exams set status = #{status}, updated_at = current_timestamp where id = #{examId}")
     int updateExamStatus(@Param("examId") Long examId, @Param("status") String status);
 
+    @Select("select count(*) from exam_attempts where exam_id = #{examId}")
+    int countAttemptsByExam(@Param("examId") Long examId);
+
+    @Select("select count(*) from exam_results where exam_id = #{examId}")
+    int countResultsByExam(@Param("examId") Long examId);
+
     @Select("select department_id from users where id = #{userId} and deleted_at is null")
     Long findUserDepartmentId(@Param("userId") Long userId);
 
@@ -149,6 +155,7 @@ public interface ExamMapper {
                    q.bank_id as bankId,
                    qb.name as bankName,
                    q.stem,
+                   q.analysis,
                    q.status
             from exam_draft_questions edq
             join questions q on q.id = edq.source_question_id
@@ -171,6 +178,14 @@ public interface ExamMapper {
             where q.id = #{questionId}
             """)
     Map<String, Object> findSourceQuestion(@Param("questionId") Long questionId);
+
+    @Select("""
+            select id, option_label as label, content, is_correct as correct, sort_order as sortOrder
+            from question_options
+            where question_id = #{questionId}
+            order by sort_order, id
+            """)
+    List<Map<String, Object>> findSourceOptions(@Param("questionId") Long questionId);
 
     @Delete("""
             delete from exam_published_attachments
@@ -242,10 +257,13 @@ public interface ExamMapper {
     int countPublishedQuestions(@Param("examId") Long examId);
 
     @Select("""
-            select *
-            from exam_published_questions
-            where exam_id = #{examId}
-            order by sort_order, id
+            select epq.*,
+                   qb.name as bankName
+            from exam_published_questions epq
+            left join questions q on q.id = epq.source_question_id
+            left join question_banks qb on qb.id = q.bank_id
+            where epq.exam_id = #{examId}
+            order by epq.sort_order, epq.id
             """)
     List<Map<String, Object>> findPublishedQuestions(@Param("examId") Long examId);
 

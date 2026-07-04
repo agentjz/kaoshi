@@ -1,7 +1,6 @@
-import { apiClient } from './client'
-import type { ApiResponse } from './types'
+import { examBusinessAdapter } from './adapters/current'
+import type { ExcelImportResult } from './admin'
 import type {
-  ExcelImportResult,
   Exam,
   ExamPayload,
   ExamResult,
@@ -52,217 +51,170 @@ export type {
   QuestionPayload,
 } from './exam-business-types'
 
-export async function fetchQuestionCategories(): Promise<NamedCategory[]> {
-  const response = await apiClient.get<ApiResponse<NamedCategory[]>>('/api/admin/question-banks/categories')
-  return response.data.data
+export function fetchQuestionCategories(): Promise<NamedCategory[]> {
+  return examBusinessAdapter.fetchQuestionCategories()
 }
 
-export async function createQuestionCategory(payload: QuestionCategoryPayload): Promise<NamedCategory> {
-  const response = await apiClient.post<ApiResponse<NamedCategory>>('/api/admin/question-banks/categories', payload)
-  return response.data.data
+export function createQuestionCategory(payload: QuestionCategoryPayload): Promise<NamedCategory> {
+  return examBusinessAdapter.createQuestionCategory(payload)
 }
 
-export async function updateQuestionCategory(id: number, payload: QuestionCategoryPayload): Promise<NamedCategory> {
-  const response = await apiClient.put<ApiResponse<NamedCategory>>(`/api/admin/question-banks/categories/${id}`, payload)
-  return response.data.data
+export function updateQuestionCategory(id: number, payload: QuestionCategoryPayload): Promise<NamedCategory> {
+  return examBusinessAdapter.updateQuestionCategory(id, payload)
 }
 
-export async function deleteQuestionCategory(id: number): Promise<void> {
-  await apiClient.delete<ApiResponse<void>>(`/api/admin/question-banks/categories/${id}`)
+export function deleteQuestionCategory(id: number): Promise<void> {
+  return examBusinessAdapter.deleteQuestionCategory(id)
 }
 
-export async function fetchQuestionBanks(params: { page: number; size: number; keyword?: string }): Promise<PageResult<QuestionBank>> {
-  const response = await apiClient.get<ApiResponse<PageResult<QuestionBank>>>('/api/admin/question-banks', { params })
-  return response.data.data
+export function fetchQuestionBanks(params: { page: number; size: number; keyword?: string }): Promise<PageResult<QuestionBank>> {
+  return examBusinessAdapter.fetchQuestionBanks(params)
 }
 
-export async function createQuestionBank(payload: QuestionBankPayload): Promise<QuestionBank> {
-  const response = await apiClient.post<ApiResponse<QuestionBank>>('/api/admin/question-banks', payload)
-  return response.data.data
+export function createQuestionBank(payload: QuestionBankPayload): Promise<QuestionBank> {
+  return examBusinessAdapter.createQuestionBank(payload)
 }
 
-export async function updateQuestionBank(id: number, payload: QuestionBankPayload): Promise<QuestionBank> {
-  const response = await apiClient.put<ApiResponse<QuestionBank>>(`/api/admin/question-banks/${id}`, payload)
-  return response.data.data
+export function updateQuestionBank(id: number, payload: QuestionBankPayload): Promise<QuestionBank> {
+  return examBusinessAdapter.updateQuestionBank(id, payload)
 }
 
-export async function fetchQuestionContentTree(bankId: number): Promise<QuestionContentTree> {
-  const response = await apiClient.get<ApiResponse<QuestionContentTree>>(`/api/admin/question-banks/${bankId}/content-tree`)
-  return response.data.data
+export function fetchQuestionContentTree(bankId: number): Promise<QuestionContentTree> {
+  return examBusinessAdapter.fetchQuestionContentTree(bankId)
 }
 
-export async function createQuestionNode(bankId: number, payload: QuestionNodePayload): Promise<QuestionContentNode> {
-  const response = await apiClient.post<ApiResponse<QuestionContentNode>>(`/api/admin/question-banks/${bankId}/nodes`, payload)
-  return response.data.data
+export function createQuestionNode(bankId: number, payload: QuestionNodePayload): Promise<QuestionContentNode> {
+  return examBusinessAdapter.createQuestionNode(bankId, payload)
 }
 
-export async function updateQuestionNode(nodeId: number, payload: QuestionNodePayload): Promise<QuestionContentNode> {
-  const response = await apiClient.put<ApiResponse<QuestionContentNode>>(`/api/admin/question-banks/nodes/${nodeId}`, payload)
-  return response.data.data
+export function updateQuestionNode(nodeId: number, payload: QuestionNodePayload): Promise<QuestionContentNode> {
+  return examBusinessAdapter.updateQuestionNode(nodeId, payload)
 }
 
-export async function deleteQuestionNode(nodeId: number): Promise<void> {
-  await apiClient.delete<ApiResponse<void>>(`/api/admin/question-banks/nodes/${nodeId}`)
+export function deleteQuestionNode(nodeId: number): Promise<void> {
+  return examBusinessAdapter.deleteQuestionNode(nodeId)
 }
 
-export async function importQuestionsToGroup(nodeId: number, file: File): Promise<ExcelImportResult> {
-  const form = new FormData()
-  form.append('file', file)
-  const response = await apiClient.post<ApiResponse<ExcelImportResult>>(`/api/admin/question-banks/nodes/${nodeId}/questions/import`, form)
-  return response.data.data
+export function importQuestionsToGroup(nodeId: number, file: File): Promise<ExcelImportResult> {
+  return examBusinessAdapter.importQuestionsToGroup(nodeId, file)
 }
 
-export async function downloadQuestionBankPackage(bankId: number): Promise<Blob> {
-  const response = await apiClient.get(`/api/admin/question-banks/${bankId}/package`, { responseType: 'blob' })
-  return response.data
+export function downloadQuestionBankPackage(bankId: number): Promise<Blob> {
+  return examBusinessAdapter.downloadQuestionBankPackage(bankId)
 }
 
-export async function importQuestionBankPackage(file: File): Promise<QuestionBankPackageImportResult> {
-  const form = new FormData()
-  form.append('file', file)
-  const response = await apiClient.post<ApiResponse<QuestionBankPackageImportResult>>('/api/admin/question-banks/package/import', form)
-  return response.data.data
+export function importQuestionBankPackage(file: File): Promise<QuestionBankPackageImportResult> {
+  return examBusinessAdapter.importQuestionBankPackage(file)
 }
 
-export async function fetchQuestions(params: { page: number; size: number; keyword?: string; bankId?: number }): Promise<PageResult<Question>> {
-  const response = await apiClient.get<ApiResponse<PageResult<Question>>>('/api/admin/questions', { params })
-  return response.data.data
+export function fetchQuestions(params: { page: number; size: number; keyword?: string; bankId?: number }): Promise<PageResult<Question>> {
+  return examBusinessAdapter.fetchQuestions(params)
 }
 
-export async function fetchQuestionDetail(id: number): Promise<Question> {
-  const response = await apiClient.get<ApiResponse<Question>>(`/api/admin/questions/${id}`)
-  return response.data.data
+export function fetchQuestionDetail(id: number): Promise<Question> {
+  return examBusinessAdapter.fetchQuestionDetail(id)
 }
 
-export async function createQuestion(payload: QuestionPayload): Promise<Question> {
-  const response = await apiClient.post<ApiResponse<Question>>('/api/admin/questions', payload)
-  return response.data.data
+export function createQuestion(payload: QuestionPayload): Promise<Question> {
+  return examBusinessAdapter.createQuestion(payload)
 }
 
-export async function updateQuestion(id: number, payload: QuestionPayload): Promise<Question> {
-  const response = await apiClient.put<ApiResponse<Question>>(`/api/admin/questions/${id}`, payload)
-  return response.data.data
+export function updateQuestion(id: number, payload: QuestionPayload): Promise<Question> {
+  return examBusinessAdapter.updateQuestion(id, payload)
 }
 
-export async function downloadQuestionImportTemplate(): Promise<Blob> {
-  const response = await apiClient.get('/api/admin/questions/import-template', { responseType: 'blob' })
-  return response.data
+export function downloadQuestionImportTemplate(): Promise<Blob> {
+  return examBusinessAdapter.downloadQuestionImportTemplate()
 }
 
-export async function importQuestions(file: File): Promise<ExcelImportResult> {
-  const form = new FormData()
-  form.append('file', file)
-  const response = await apiClient.post<ApiResponse<ExcelImportResult>>('/api/admin/questions/import', form)
-  return response.data.data
+export function importQuestions(file: File): Promise<ExcelImportResult> {
+  return examBusinessAdapter.importQuestions(file)
 }
 
-export async function downloadQuestionExport(): Promise<Blob> {
-  const response = await apiClient.get('/api/admin/questions/export', { responseType: 'blob' })
-  return response.data
+export function downloadQuestionExport(): Promise<Blob> {
+  return examBusinessAdapter.downloadQuestionExport()
 }
 
-export async function uploadFile(file: File): Promise<QuestionAttachmentPayload> {
-  const form = new FormData()
-  form.append('file', file)
-  const response = await apiClient.post<ApiResponse<QuestionAttachmentPayload>>('/api/admin/files', form)
-  return response.data.data
+export function uploadFile(file: File): Promise<QuestionAttachmentPayload> {
+  return examBusinessAdapter.uploadFile(file)
 }
 
-export async function fetchAdminExams(params: { page: number; size: number; keyword?: string }): Promise<PageResult<Exam>> {
-  const response = await apiClient.get<ApiResponse<PageResult<Exam>>>('/api/admin/exams', { params })
-  return response.data.data
+export function fetchAdminExams(params: { page: number; size: number; keyword?: string }): Promise<PageResult<Exam>> {
+  return examBusinessAdapter.fetchAdminExams(params)
 }
 
-export async function fetchAdminExamDetail(id: number): Promise<Exam> {
-  const response = await apiClient.get<ApiResponse<Exam>>(`/api/admin/exams/${id}`)
-  return response.data.data
+export function fetchAdminExamDetail(id: number): Promise<Exam> {
+  return examBusinessAdapter.fetchAdminExamDetail(id)
 }
 
-export async function createExam(payload: ExamPayload): Promise<Exam> {
-  const response = await apiClient.post<ApiResponse<Exam>>('/api/admin/exams', payload)
-  return response.data.data
+export function createExam(payload: ExamPayload): Promise<Exam> {
+  return examBusinessAdapter.createExam(payload)
 }
 
-export async function updateExam(id: number, payload: ExamPayload): Promise<Exam> {
-  const response = await apiClient.put<ApiResponse<Exam>>(`/api/admin/exams/${id}`, payload)
-  return response.data.data
+export function updateExam(id: number, payload: ExamPayload): Promise<Exam> {
+  return examBusinessAdapter.updateExam(id, payload)
 }
 
-export async function publishExam(id: number): Promise<Exam> {
-  const response = await apiClient.post<ApiResponse<Exam>>(`/api/admin/exams/${id}/publish`)
-  return response.data.data
+export function publishExam(id: number): Promise<Exam> {
+  return examBusinessAdapter.publishExam(id)
 }
 
-export async function copyExam(id: number): Promise<Exam> {
-  const response = await apiClient.post<ApiResponse<Exam>>(`/api/admin/exams/${id}/copy`)
-  return response.data.data
+export function copyExam(id: number): Promise<Exam> {
+  return examBusinessAdapter.copyExam(id)
 }
 
-export async function downloadExamPaper(id: number): Promise<Blob> {
-  const response = await apiClient.get(`/api/admin/exams/${id}/download`, { responseType: 'blob' })
-  return response.data
+export function downloadExamPaper(id: number): Promise<Blob> {
+  return examBusinessAdapter.downloadExamPaper(id)
 }
 
-export async function revokeExam(id: number): Promise<Exam> {
-  const response = await apiClient.post<ApiResponse<Exam>>(`/api/admin/exams/${id}/revoke`)
-  return response.data.data
+export function revokeExam(id: number): Promise<Exam> {
+  return examBusinessAdapter.revokeExam(id)
 }
 
-export async function closeExam(id: number): Promise<Exam> {
-  const response = await apiClient.post<ApiResponse<Exam>>(`/api/admin/exams/${id}/close`)
-  return response.data.data
+export function closeExam(id: number): Promise<Exam> {
+  return examBusinessAdapter.closeExam(id)
 }
 
-export async function deleteExam(id: number): Promise<void> {
-  await apiClient.delete<ApiResponse<void>>(`/api/admin/exams/${id}`)
+export function deleteExam(id: number): Promise<void> {
+  return examBusinessAdapter.deleteExam(id)
 }
 
-export async function fetchAdminResults(params?: { examId?: number }): Promise<ExamResult[]> {
-  const response = await apiClient.get<ApiResponse<ExamResult[]>>('/api/admin/results', { params })
-  return response.data.data
+export function fetchAdminResults(params?: { examId?: number }): Promise<ExamResult[]> {
+  return examBusinessAdapter.fetchAdminResults(params)
 }
 
-export async function fetchAdminResultDetail(resultId: number): Promise<ExamResultDetail> {
-  const response = await apiClient.get<ApiResponse<ExamResultDetail>>(`/api/admin/results/${resultId}`)
-  return response.data.data
+export function fetchAdminResultDetail(resultId: number): Promise<ExamResultDetail> {
+  return examBusinessAdapter.fetchAdminResultDetail(resultId)
 }
 
-export async function fetchExamTasks(): Promise<Exam[]> {
-  const response = await apiClient.get<ApiResponse<Exam[]>>('/api/exam/tasks')
-  return response.data.data
+export function fetchExamTasks(): Promise<Exam[]> {
+  return examBusinessAdapter.fetchExamTasks()
 }
 
-export async function startExam(examId: number): Promise<ExamSession> {
-  const response = await apiClient.post<ApiResponse<ExamSession>>(`/api/exam/${examId}/start`)
-  return response.data.data
+export function startExam(examId: number): Promise<ExamSession> {
+  return examBusinessAdapter.startExam(examId)
 }
 
-export async function saveExamAnswers(examId: number, answers: Array<{ questionId: number; selectedLabels?: string[]; answerText?: string }>): Promise<ExamSession> {
-  const response = await apiClient.post<ApiResponse<ExamSession>>(`/api/exam/${examId}/answers`, { answers })
-  return response.data.data
+export function saveExamAnswers(examId: number, answers: Array<{ questionId: number; selectedLabels?: string[]; answerText?: string }>): Promise<ExamSession> {
+  return examBusinessAdapter.saveExamAnswers(examId, answers)
 }
 
-export async function submitExam(examId: number, answers: Array<{ questionId: number; selectedLabels?: string[]; answerText?: string }>): Promise<ExamResult> {
-  const response = await apiClient.post<ApiResponse<ExamResult>>(`/api/exam/${examId}/submit`, { answers })
-  return response.data.data
+export function submitExam(examId: number, answers: Array<{ questionId: number; selectedLabels?: string[]; answerText?: string }>): Promise<ExamResult> {
+  return examBusinessAdapter.submitExam(examId, answers)
 }
 
-export async function reviewWritingQuestion(resultId: number, questionId: number, payload: { score: number; comment: string }): Promise<ExamResultDetail> {
-  const response = await apiClient.post<ApiResponse<ExamResultDetail>>(`/api/admin/results/${resultId}/questions/${questionId}/review`, payload)
-  return response.data.data
+export function reviewWritingQuestion(resultId: number, questionId: number, payload: { score: number; comment: string }): Promise<ExamResultDetail> {
+  return examBusinessAdapter.reviewWritingQuestion(resultId, questionId, payload)
 }
 
-export async function completeResultReview(resultId: number): Promise<ExamResultDetail> {
-  const response = await apiClient.post<ApiResponse<ExamResultDetail>>(`/api/admin/results/${resultId}/complete-review`)
-  return response.data.data
+export function completeResultReview(resultId: number): Promise<ExamResultDetail> {
+  return examBusinessAdapter.completeResultReview(resultId)
 }
 
-export async function fetchMyExamResults(): Promise<ExamResult[]> {
-  const response = await apiClient.get<ApiResponse<ExamResult[]>>('/api/exam/results')
-  return response.data.data
+export function fetchMyExamResults(): Promise<ExamResult[]> {
+  return examBusinessAdapter.fetchMyExamResults()
 }
 
-export async function fetchMyExamResultDetail(resultId: number): Promise<ExamResultDetail> {
-  const response = await apiClient.get<ApiResponse<ExamResultDetail>>(`/api/exam/results/${resultId}`)
-  return response.data.data
+export function fetchMyExamResultDetail(resultId: number): Promise<ExamResultDetail> {
+  return examBusinessAdapter.fetchMyExamResultDetail(resultId)
 }

@@ -1,5 +1,4 @@
-import { apiClient } from './client'
-import type { ApiResponse } from './types'
+import { adminAdapter } from './adapters/current'
 
 export interface PageResult<T> {
   records: T[]
@@ -91,87 +90,66 @@ export interface DepartmentPayload {
   status: Department['status']
 }
 
-export async function fetchAdminUsers(params: {
-  page: number
-  size: number
-  keyword?: string
-}): Promise<PageResult<AdminUser>> {
-  const response = await apiClient.get<ApiResponse<PageResult<AdminUser>>>('/api/admin/users', { params })
-  return response.data.data
+export function fetchAdminUsers(params: { page: number; size: number; keyword?: string }): Promise<PageResult<AdminUser>> {
+  return adminAdapter.fetchAdminUsers(params)
 }
 
-export async function createAdminUser(payload: UserCreatePayload): Promise<AdminUser> {
-  const response = await apiClient.post<ApiResponse<AdminUser>>('/api/admin/users', payload)
-  return response.data.data
+export function createAdminUser(payload: UserCreatePayload): Promise<AdminUser> {
+  return adminAdapter.createAdminUser(payload)
 }
 
-export async function updateAdminUser(id: number, payload: UserUpdatePayload): Promise<AdminUser> {
-  const response = await apiClient.put<ApiResponse<AdminUser>>(`/api/admin/users/${id}`, payload)
-  return response.data.data
+export function updateAdminUser(id: number, payload: UserUpdatePayload): Promise<AdminUser> {
+  return adminAdapter.updateAdminUser(id, payload)
 }
 
-export async function changeAdminUserStatus(id: number, status: AdminUser['status']): Promise<AdminUser> {
-  const response = await apiClient.patch<ApiResponse<AdminUser>>(`/api/admin/users/${id}/status`, { status })
-  return response.data.data
+export function changeAdminUserStatus(id: number, status: AdminUser['status']): Promise<AdminUser> {
+  return adminAdapter.changeAdminUserStatus(id, status)
 }
 
-export async function downloadUserImportTemplate(): Promise<Blob> {
-  const response = await apiClient.get('/api/admin/users/import-template', { responseType: 'blob' })
-  return response.data
+export function downloadUserImportTemplate(): Promise<Blob> {
+  return adminAdapter.downloadUserImportTemplate()
 }
 
-export async function importUsers(file: File): Promise<ExcelImportResult> {
-  const form = new FormData()
-  form.append('file', file)
-  const response = await apiClient.post<ApiResponse<ExcelImportResult>>('/api/admin/users/import', form)
-  return response.data.data
+export function importUsers(file: File): Promise<ExcelImportResult> {
+  return adminAdapter.importUsers(file)
 }
 
-export async function downloadUserExport(): Promise<Blob> {
-  const response = await apiClient.get('/api/admin/users/export', { responseType: 'blob' })
-  return response.data
+export function downloadUserExport(): Promise<Blob> {
+  return adminAdapter.downloadUserExport()
 }
 
-export async function fetchAdminRoles(): Promise<AdminRole[]> {
-  const response = await apiClient.get<ApiResponse<AdminRole[]>>('/api/admin/roles')
-  return response.data.data
+export function fetchAdminRoles(): Promise<AdminRole[]> {
+  return adminAdapter.fetchAdminRoles()
 }
 
-export async function createAdminRole(payload: RoleSavePayload): Promise<AdminRole> {
-  const response = await apiClient.post<ApiResponse<AdminRole>>('/api/admin/roles', payload)
-  return response.data.data
+export function createAdminRole(payload: RoleSavePayload): Promise<AdminRole> {
+  return adminAdapter.createAdminRole(payload)
 }
 
-export async function updateAdminRole(id: number, payload: RoleSavePayload): Promise<AdminRole> {
-  const response = await apiClient.put<ApiResponse<AdminRole>>(`/api/admin/roles/${id}`, payload)
-  return response.data.data
+export function updateAdminRole(id: number, payload: RoleSavePayload): Promise<AdminRole> {
+  return adminAdapter.updateAdminRole(id, payload)
 }
 
-export async function fetchAdminPermissions(): Promise<AdminPermission[]> {
-  const response = await apiClient.get<ApiResponse<AdminPermission[]>>('/api/admin/permissions')
-  return response.data.data
+export function fetchAdminPermissions(): Promise<AdminPermission[]> {
+  return adminAdapter.fetchAdminPermissions()
 }
 
-export async function fetchAdminMenus(): Promise<AdminMenu[]> {
-  const response = await apiClient.get<ApiResponse<AdminMenu[]>>('/api/admin/menus')
-  return response.data.data
+export function fetchAdminMenus(): Promise<AdminMenu[]> {
+  return adminAdapter.fetchAdminMenus()
 }
 
-export async function fetchDepartments(): Promise<Department[]> {
-  const response = await apiClient.get<ApiResponse<Department[]>>('/api/admin/departments')
-  return response.data.data
+export function fetchDepartments(): Promise<Department[]> {
+  return adminAdapter.fetchDepartments()
 }
 
-export async function createDepartment(payload: DepartmentPayload): Promise<Department> {
-  const response = await apiClient.post<ApiResponse<Department>>('/api/admin/departments', payload)
-  return response.data.data
+export function createDepartment(payload: DepartmentPayload): Promise<Department> {
+  return adminAdapter.createDepartment(payload)
 }
 
-export async function updateDepartment(id: number, payload: DepartmentPayload): Promise<Department> {
-  const response = await apiClient.put<ApiResponse<Department>>(`/api/admin/departments/${id}`, payload)
-  return response.data.data
+export function updateDepartment(id: number, payload: DepartmentPayload): Promise<Department> {
+  return adminAdapter.updateDepartment(id, payload)
 }
 
-export async function deleteDepartment(id: number): Promise<void> {
-  await apiClient.delete<ApiResponse<void>>(`/api/admin/departments/${id}`)
+export function deleteDepartment(id: number): Promise<void> {
+  return adminAdapter.deleteDepartment(id)
 }

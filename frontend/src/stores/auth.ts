@@ -1,10 +1,8 @@
-﻿import { defineStore } from 'pinia'
+import { defineStore } from 'pinia'
 
 import { changePassword, fetchCurrentUser, login, logout } from '@/api/auth'
 import type { CurrentUser, LoginPayload } from '@/api/types'
-
-const TOKEN_KEY = 'kaoshi.accessToken'
-const USER_KEY = 'kaoshi.currentUser'
+import { sessionStorageAdapter } from '@/runtime/session-storage'
 
 interface AuthState {
   token: string
@@ -12,23 +10,10 @@ interface AuthState {
   loading: boolean
 }
 
-function readUser(): CurrentUser | null {
-  const raw = localStorage.getItem(USER_KEY)
-  if (!raw) {
-    return null
-  }
-  try {
-    return JSON.parse(raw) as CurrentUser
-  } catch {
-    localStorage.removeItem(USER_KEY)
-    return null
-  }
-}
-
 export const useAuthStore = defineStore('auth', {
   state: (): AuthState => ({
-    token: localStorage.getItem(TOKEN_KEY) || '',
-    user: readUser(),
+    token: sessionStorageAdapter.readToken(),
+    user: sessionStorageAdapter.readUser(),
     loading: false,
   }),
   getters: {
@@ -43,8 +28,7 @@ export const useAuthStore = defineStore('auth', {
         const result = await login(payload)
         this.token = result.accessToken
         this.user = result.user
-        localStorage.setItem(TOKEN_KEY, result.accessToken)
-        localStorage.setItem(USER_KEY, JSON.stringify(result.user))
+        sessionStorageAdapter.writeSession(result.accessToken, result.user)
       } finally {
         this.loading = false
       }
@@ -54,7 +38,7 @@ export const useAuthStore = defineStore('auth', {
         return
       }
       this.user = await fetchCurrentUser()
-      localStorage.setItem(USER_KEY, JSON.stringify(this.user))
+      sessionStorageAdapter.writeUser(this.user)
     },
     async changePassword(payload: { currentPassword: string; newPassword: string; confirmPassword: string }) {
       await changePassword(payload)
@@ -69,9 +53,7 @@ export const useAuthStore = defineStore('auth', {
     clearSession() {
       this.token = ''
       this.user = null
-      localStorage.removeItem(TOKEN_KEY)
-      localStorage.removeItem(USER_KEY)
+      sessionStorageAdapter.clear()
     },
   },
 })
-

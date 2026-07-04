@@ -1,24 +1,22 @@
-import { apiClient } from './client'
-import type { ApiResponse, CurrentUser, LoginPayload, LoginResult } from './types'
+import { authAdapter } from './adapters/current'
+import type { CurrentUser, LoginPayload, LoginResult } from './types'
 
-export async function login(payload: LoginPayload): Promise<LoginResult> {
-  const response = await apiClient.post<ApiResponse<LoginResult>>('/api/auth/login', payload)
-  return response.data.data
+export function login(payload: LoginPayload): Promise<LoginResult> {
+  return authAdapter.login(payload)
 }
 
-export async function fetchCurrentUser(): Promise<CurrentUser> {
-  const response = await apiClient.get<ApiResponse<CurrentUser>>('/api/auth/me')
-  return response.data.data
+export function fetchCurrentUser(): Promise<CurrentUser> {
+  return authAdapter.fetchCurrentUser()
 }
 
-export async function logout(): Promise<void> {
-  await apiClient.post<ApiResponse<void>>('/api/auth/logout')
+export function logout(): Promise<void> {
+  return authAdapter.logout()
 }
 
-export async function changePassword(payload: {
+export function changePassword(payload: {
   currentPassword: string
   newPassword: string
   confirmPassword: string
 }): Promise<void> {
-  await apiClient.post<ApiResponse<void>>('/api/auth/change-password', payload)
+  return authAdapter.changePassword(payload)
 }

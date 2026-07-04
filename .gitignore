@@ -39,6 +39,7 @@ yarn-error.log*
 .env
 .env.*
 !.env.example
+!frontend/.env.demo
 
 # Database / runtime
 *.sqlite

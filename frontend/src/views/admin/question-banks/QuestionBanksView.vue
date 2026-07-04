@@ -39,21 +39,6 @@
         @delete-category="deleteCategory"
       />
 
-      <QuestionContentEditorPane
-        :selected-bank="selectedBank"
-        :tree="contentTree"
-        :loading="contentTreeLoading"
-        :saving="nodeSaving"
-        :importing="groupImporting || packageImporting"
-        :uploading-attachment="uploadingAttachment"
-        :upload-attachment="uploadNodeAttachment"
-        @save-node="saveContentNode"
-        @delete-node="deleteContentNode"
-        @import-group="importGroupQuestions"
-        @export-package="exportSelectedBankPackage"
-        @import-package="importBankPackage"
-      />
-
       <QuestionListPane
         :selected-bank="selectedBank"
         :selected-category="selectedCategory"
@@ -69,8 +54,32 @@
         @edit-category="openEditCategoryDialog"
         @create-question="openCreateQuestionDialog"
         @edit-question="openEditQuestionDialog"
+        @manage-structure="openStructureDrawer"
       />
     </div>
+
+    <el-drawer
+      v-model="structureDrawerVisible"
+      title="题组结构"
+      size="760px"
+      class="structure-drawer"
+      destroy-on-close
+    >
+      <QuestionContentEditorPane
+        :selected-bank="selectedBank"
+        :tree="contentTree"
+        :loading="contentTreeLoading"
+        :saving="nodeSaving"
+        :importing="groupImporting || packageImporting"
+        :uploading-attachment="uploadingAttachment"
+        :upload-attachment="uploadNodeAttachment"
+        @save-node="saveContentNode"
+        @delete-node="deleteContentNode"
+        @import-group="importGroupQuestions"
+        @export-package="exportSelectedBankPackage"
+        @import-package="importBankPackage"
+      />
+    </el-drawer>
 
     <QuestionCategoryDialog
       ref="categoryFormRef"
@@ -135,6 +144,7 @@ const pageTitle = '题库管理'
 const questionFormRef = ref<{ validate: () => Promise<boolean> | undefined }>()
 const bankFormRef = ref<{ validate: () => Promise<boolean> | undefined }>()
 const categoryFormRef = ref<{ validate: () => Promise<boolean> | undefined }>()
+const structureDrawerVisible = ref(false)
 
 async function refreshFirstQuestionPage() {
   await questionEditor.loadFirstPage()
@@ -151,7 +161,9 @@ const questionEditor = useQuestionEditor(
     await questionEditor.loadQuestions()
   },
   async () => {
-    await contentActions.loadContentTree()
+    if (structureDrawerVisible.value) {
+      await contentActions.loadContentTree()
+    }
   },
 )
 const contentActions = useQuestionContentActions(
@@ -256,14 +268,38 @@ function submitBank() {
 function submitQuestion() {
   return questionEditor.submitQuestion(() => questionFormRef.value?.validate())
 }
+
+async function openStructureDrawer() {
+  structureDrawerVisible.value = true
+  await contentActions.loadContentTree()
+}
 </script>
 
 <style scoped>
 .question-workbench {
   display: grid;
-  grid-template-columns: minmax(280px, 340px) minmax(320px, 420px) minmax(0, 1fr);
+  grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
   gap: 16px;
+  align-items: start;
   min-width: 0;
+}
+
+.question-workbench :deep(.tree-pane),
+.question-workbench :deep(.question-pane) {
+  min-height: 356px;
+}
+
+.question-workbench :deep(.question-pane) {
+  align-self: stretch;
+}
+
+:global(.structure-drawer) {
+  max-width: min(760px, 100vw);
+}
+
+:global(.structure-drawer .el-drawer__body) {
+  min-width: 0;
+  padding: 16px;
 }
 
 .import-errors {
@@ -271,23 +307,9 @@ function submitQuestion() {
   padding-left: 18px;
 }
 
-@media (max-width: 1320px) {
-  .question-workbench {
-    grid-template-columns: minmax(260px, 320px) minmax(0, 1fr);
-  }
-
-  .question-workbench :deep(.question-pane) {
-    grid-column: 1 / -1;
-  }
-}
-
 @media (max-width: 900px) {
   .question-workbench {
     grid-template-columns: 1fr;
-  }
-
-  .question-workbench :deep(.question-pane) {
-    grid-column: auto;
   }
 }
 </style>

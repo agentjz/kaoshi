@@ -2,7 +2,7 @@
   <section class="content-editor">
     <div class="content-editor__header">
       <div>
-        <h2>内容结构</h2>
+        <h2>题组结构</h2>
         <span class="muted-text">{{ selectedBank ? `${selectedBank.name} · ${totalQuestions} 小题` : '选择题库后维护结构' }}</span>
       </div>
       <div class="content-editor__actions">
@@ -243,7 +243,9 @@ function countQuestions(node: QuestionContentNode): number {
 .content-editor {
   display: grid;
   gap: 14px;
+  width: 100%;
   min-width: 0;
+  box-sizing: border-box;
   padding: 18px;
   border: 1px solid var(--ks-border);
   border-radius: var(--ks-radius);
@@ -256,21 +258,44 @@ function countQuestions(node: QuestionContentNode): number {
 .content-editor__footer {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 10px;
   min-width: 0;
+}
+
+.content-editor__header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.content-editor__actions,
+.content-editor__toolbar,
+.content-editor__footer {
+  justify-content: flex-start;
+  flex-wrap: wrap;
+}
+
+.content-editor__actions {
+  flex: none;
+  justify-content: flex-end;
+}
+
+.content-editor__actions :deep(.el-button + .el-button),
+.content-editor__toolbar :deep(.el-button + .el-button),
+.content-editor__footer :deep(.el-button + .el-button) {
+  margin-left: 0;
+}
+
+.content-editor__actions :deep(.el-upload),
+.content-editor__footer :deep(.el-upload) {
+  display: flex;
 }
 
 .content-editor__header h2 {
   margin: 0;
   font-size: 20px;
   letter-spacing: 0;
-}
-
-.content-editor__toolbar,
-.content-editor__footer {
-  justify-content: flex-start;
-  flex-wrap: wrap;
 }
 
 .content-editor__tree {
@@ -301,10 +326,30 @@ function countQuestions(node: QuestionContentNode): number {
   gap: 10px;
 }
 
+.content-editor__form :deep(.el-form-item) {
+  min-width: 0;
+}
+
+.content-editor__form :deep(.el-form-item__content) {
+  min-width: 0;
+}
+
+.content-editor__form :deep(.el-input),
+.content-editor__form :deep(.el-textarea),
+.content-editor__form :deep(.el-input-number),
+.content-editor__form :deep(.el-segmented) {
+  max-width: 100%;
+}
+
 @media (max-width: 900px) {
   .content-editor__header {
+    grid-template-columns: 1fr;
     align-items: flex-start;
-    flex-direction: column;
+  }
+
+  .content-editor__actions {
+    width: 100%;
+    justify-content: flex-start;
   }
 }
 </style>

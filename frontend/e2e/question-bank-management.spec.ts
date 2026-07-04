@@ -1,9 +1,16 @@
-import { expect, test } from '@playwright/test'
+import { expect, test, type Page } from '@playwright/test'
 
 import { collectConsoleIssues, downloadByButton, login } from './helpers'
 
 const CET4_BANK = '2023年03月英语四级第一套 - 听力'
 const CET4_AUDIO_URL = '/local-assets/cet4/2023-03/set-1/2023-03-cet4-listening.mp3'
+
+async function chooseCategoryAction(page: Page, categoryName: string, actionName: '新建题库' | '编辑分类' | '删除分类') {
+  const categoryRow = page.locator('.tree-pane .bank-node--category').filter({ hasText: categoryName })
+  await categoryRow.hover()
+  await categoryRow.getByRole('button', { name: '操作' }).click()
+  await page.getByRole('menuitem', { name: actionName }).click()
+}
 
 test.describe('题库管理', () => {
   test('题库管理支持分类生命周期、搜索、新建和编辑取消', async ({ page }) => {
@@ -23,14 +30,14 @@ test.describe('题库管理', () => {
     await categoryDialog.getByRole('button', { name: '保存' }).click()
     await expect(page.getByText('分类已创建')).toBeVisible()
     await expect(page.locator('.tree-pane')).toContainText(categoryName)
-    await page.locator('.tree-pane .bank-node--category').filter({ hasText: categoryName }).getByRole('button', { name: '编辑' }).click()
+    await chooseCategoryAction(page, categoryName, '编辑分类')
     const editCategoryDialog = page.getByRole('dialog', { name: '编辑分类' })
     await editCategoryDialog.getByLabel('名称').fill(updatedCategoryName)
     await editCategoryDialog.getByRole('button', { name: '保存' }).click()
     await expect(page.getByText('分类已更新')).toBeVisible()
     const updatedCategoryRow = page.locator('.tree-pane .bank-node--category').filter({ hasText: updatedCategoryName })
     await expect(updatedCategoryRow).toBeVisible()
-    await updatedCategoryRow.getByRole('button', { name: '新建题库' }).click()
+    await chooseCategoryAction(page, updatedCategoryName, '新建题库')
     const categoryBankDialog = page.getByRole('dialog', { name: '新建题库' })
     const categoryBankName = `分类下题库${Date.now()}`
     await expect(categoryBankDialog.locator('.el-select').first()).toContainText(updatedCategoryName)
@@ -39,7 +46,7 @@ test.describe('题库管理', () => {
     await categoryBankDialog.getByRole('button', { name: '保存' }).click()
     await expect(page.getByText('题库已创建')).toBeVisible()
     await expect(page.locator('.tree-pane')).toContainText(categoryBankName)
-    await updatedCategoryRow.getByRole('button', { name: '删除' }).click()
+    await chooseCategoryAction(page, updatedCategoryName, '删除分类')
     await page.getByRole('dialog', { name: '删除分类' }).getByRole('button', { name: '删除分类' }).click()
     await expect(page.getByText('分类下存在题库，不能删除')).toBeVisible()
     const emptyCategoryName = `空分类${Date.now()}`
@@ -48,7 +55,7 @@ test.describe('题库管理', () => {
     await page.getByRole('dialog', { name: '新建分类' }).getByRole('button', { name: '保存' }).click()
     await expect(page.getByText('分类已创建')).toBeVisible()
     const emptyCategoryRow = page.locator('.tree-pane .bank-node--category').filter({ hasText: emptyCategoryName })
-    await emptyCategoryRow.getByRole('button', { name: '删除' }).click()
+    await chooseCategoryAction(page, emptyCategoryName, '删除分类')
     await page.getByRole('dialog', { name: '删除分类' }).getByRole('button', { name: '删除分类' }).click()
     await expect(page.getByText('分类已删除')).toBeVisible()
     await expect(page.locator('.tree-pane')).not.toContainText(emptyCategoryName)
@@ -84,9 +91,8 @@ test.describe('题库管理', () => {
     await expect(page.getByText('导入完成：成功')).toBeVisible()
     await page.locator('.tree-pane').getByText(CET4_BANK).click()
     await expect(page.locator('.selected-bank')).toContainText(CET4_BANK)
-    await expect(page.getByText('内容结构')).toBeVisible()
-    await expect(page.getByText('Part II Listening Comprehension')).toBeVisible()
-    await expect(page.getByText('News Report One')).toBeVisible()
+    await expect(page.locator('.selected-bank').getByRole('button', { name: '题组结构' })).toBeVisible()
+    await expect(page.locator('.content-editor')).toHaveCount(0)
     await page.getByPlaceholder('搜索题干或题库').fill('2023年03月英语四级真题第一套')
     await page.locator('.question-pane').getByRole('button', { name: '搜索' }).click()
     await expect(page.getByText('2023年03月英语四级真题第一套 - 第25题').first()).toBeVisible()
@@ -149,8 +155,10 @@ test.describe('题库管理', () => {
     await page.locator('.tree-pane').getByText(bankName).click()
     await expect(page.locator('.selected-bank')).toContainText(bankName)
 
-    const contentEditor = page.locator('.content-editor')
     const questionTemplate = await downloadByButton(page, '下载模板')
+    await page.locator('.selected-bank').getByRole('button', { name: '题组结构' }).click()
+    const contentEditor = page.locator('.content-editor')
+    await expect(page.getByRole('dialog', { name: '题组结构' })).toBeVisible()
 
     await contentEditor.getByRole('button', { name: '新建大组' }).click()
     await contentEditor.getByPlaceholder('如 listening-section-a').fill(sectionCode)

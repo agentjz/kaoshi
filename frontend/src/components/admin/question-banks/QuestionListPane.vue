@@ -10,6 +10,7 @@
       </div>
       <div class="header-actions">
         <el-button v-if="selectedBank" @click="$emit('edit-bank', selectedBank)">编辑题库</el-button>
+        <el-button v-if="selectedBank" @click="$emit('manage-structure')">题组结构</el-button>
         <el-button v-if="selectedCategory && !selectedBank" @click="$emit('edit-category', selectedCategory.id)">编辑分类</el-button>
         <el-button type="primary" :disabled="bankCount === 0" @click="$emit('create-question')">新建试题</el-button>
       </div>
@@ -87,6 +88,7 @@ defineEmits<{
   'edit-category': [categoryId: number]
   'create-question': []
   'edit-question': [question: Question]
+  'manage-structure': []
 }>()
 </script>
 
@@ -95,6 +97,7 @@ defineEmits<{
   display: grid;
   gap: 14px;
   min-width: 0;
+  box-sizing: border-box;
   padding: 18px;
   border: 1px solid var(--ks-border);
   border-radius: var(--ks-radius);
@@ -102,23 +105,51 @@ defineEmits<{
 }
 
 .selected-bank {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: flex-start;
   gap: 12px;
   min-width: 0;
+}
+
+.selected-bank .header-actions {
+  flex: none;
+  justify-content: flex-end;
+  padding-top: 2px;
 }
 
 .selected-bank h2 {
   margin: 0;
   font-size: 20px;
   letter-spacing: 0;
+  overflow-wrap: anywhere;
+}
+
+.question-pane .toolbar {
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  padding: 14px;
+}
+
+.question-pane .toolbar__search {
+  flex: 1 1 280px;
+  width: auto;
+  min-width: 220px;
+}
+
+.question-pane .toolbar :deep(.el-button) {
+  flex: none;
 }
 
 @media (max-width: 900px) {
   .selected-bank {
+    grid-template-columns: 1fr;
     align-items: flex-start;
-    flex-direction: column;
+  }
+
+  .selected-bank .header-actions {
+    width: 100%;
+    justify-content: flex-start;
   }
 }
 </style>

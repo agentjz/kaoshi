@@ -1,9 +1,11 @@
 <template>
   <aside class="tree-pane">
     <div class="pane-title">
-      <strong>题库树</strong>
-      <div class="pane-title__actions">
+      <div class="pane-title__copy">
+        <strong>题库树</strong>
         <span>{{ bankCount }} 个题库 / {{ questionTotal }} 题</span>
+      </div>
+      <div class="pane-title__actions">
         <el-button size="small" :icon="Plus" @click="$emit('create-category')">新建分类</el-button>
       </div>
     </div>
@@ -32,9 +34,16 @@
           </div>
           <div class="bank-node__actions">
             <template v-if="data.type === 'category' && data.categoryId">
-              <el-button link type="primary" size="small" @click.stop="$emit('create-bank', data.categoryId)">新建题库</el-button>
-              <el-button link type="primary" size="small" @click.stop="$emit('edit-category', data.categoryId)">编辑</el-button>
-              <el-button link type="danger" size="small" @click.stop="$emit('delete-category', data.categoryId)">删除</el-button>
+              <el-dropdown trigger="click" @command="handleCategoryCommand($event, data.categoryId!)">
+                <el-button link type="primary" size="small" @click.stop>操作</el-button>
+                <template #dropdown>
+                  <el-dropdown-menu>
+                    <el-dropdown-item command="createBank">新建题库</el-dropdown-item>
+                    <el-dropdown-item command="editCategory">编辑分类</el-dropdown-item>
+                    <el-dropdown-item command="deleteCategory">删除分类</el-dropdown-item>
+                  </el-dropdown-menu>
+                </template>
+              </el-dropdown>
             </template>
             <el-tag v-else size="small" effect="plain" :type="data.status === 'ACTIVE' ? 'success' : 'info'">
               {{ data.status === 'ACTIVE' ? '启用' : '禁用' }}
@@ -60,7 +69,7 @@ defineProps<{
   questionTotal: number
 }>()
 
-defineEmits<{
+const emit = defineEmits<{
   search: []
   'select-node': [node: BankTreeNode]
   'create-category': []
@@ -70,6 +79,20 @@ defineEmits<{
 }>()
 
 const treeRef = ref()
+type CategoryCommand = 'createBank' | 'editCategory' | 'deleteCategory'
+
+function handleCategoryCommand(command: string | number | object, categoryId: number) {
+  const action = command as CategoryCommand
+  if (action === 'createBank') {
+    emit('create-bank', categoryId)
+    return
+  }
+  if (action === 'editCategory') {
+    emit('edit-category', categoryId)
+    return
+  }
+  emit('delete-category', categoryId)
+}
 
 defineExpose({
   setCurrentKey(key: string | null) {
@@ -117,11 +140,19 @@ defineExpose({
 .pane-title__actions {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
   gap: 8px;
   min-width: 0;
 }
 
-.pane-title span {
+.pane-title__copy {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.pane-title__copy span {
   color: var(--ks-text-muted);
   font-size: 13px;
 }
@@ -133,6 +164,10 @@ defineExpose({
   margin-bottom: 12px;
 }
 
+.bank-search .el-button {
+  flex: none;
+}
+
 .bank-node {
   width: 100%;
   min-width: 0;
@@ -141,10 +176,19 @@ defineExpose({
 }
 
 .bank-node__actions {
-  display: flex;
+  display: none;
   flex: none;
   align-items: center;
   gap: 4px;
+}
+
+.bank-node:hover .bank-node__actions,
+.el-tree-node.is-current .bank-node__actions {
+  display: flex;
+}
+
+.bank-node:not(.bank-node--category) .bank-node__actions {
+  display: flex;
 }
 
 .bank-node__actions .el-button {
@@ -172,5 +216,16 @@ defineExpose({
 
 .bank-node--category .entity-name {
   font-weight: 700;
+}
+
+@media (max-width: 900px) {
+  .pane-title {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .pane-title__actions {
+    justify-content: flex-start;
+  }
 }
 </style>

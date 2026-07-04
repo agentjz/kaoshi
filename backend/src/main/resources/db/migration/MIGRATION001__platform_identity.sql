@@ -97,8 +97,7 @@ values
 insert into users (id, department_id, username, display_name, password_hash, status, must_change_password)
 values
   (1, 1, 'admin', '系统管理员', '$2a$10$KSY7KAawfe6xK/gp4bXt2erxEFQe0w4kSVfgM1/ZVJobedbZrQZq6', 'ACTIVE', false),
-  (2, 2, 'zhangsan', '张三', '$2a$10$KSY7KAawfe6xK/gp4bXt2erxEFQe0w4kSVfgM1/ZVJobedbZrQZq6', 'ACTIVE', false),
-  (3, 2, 'chenhuan', '陈欢', '$2a$10$KSY7KAawfe6xK/gp4bXt2erxEFQe0w4kSVfgM1/ZVJobedbZrQZq6', 'ACTIVE', false);
+  (2, 2, 'zhangsan', '张三', '$2a$10$KSY7KAawfe6xK/gp4bXt2erxEFQe0w4kSVfgM1/ZVJobedbZrQZq6', 'ACTIVE', false);
 
 insert into roles (id, code, name, description)
 values
@@ -117,8 +116,7 @@ values
 insert into user_roles (user_id, role_id)
 values
   (1, 1),
-  (2, 3),
-  (3, 3);
+  (2, 3);
 
 insert into role_permissions (role_id, permission_id)
 select 1, id from permissions;

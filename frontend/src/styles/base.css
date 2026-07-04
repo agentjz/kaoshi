@@ -438,6 +438,20 @@ button {
   min-width: 0;
 }
 
+.header-actions .el-button + .el-button,
+.header-actions .el-upload + .el-button,
+.header-actions .el-button + .el-upload,
+.toolbar .el-button + .el-button,
+.toolbar .el-upload + .el-button,
+.toolbar .el-button + .el-upload {
+  margin-left: 0;
+}
+
+.header-actions .el-upload,
+.toolbar .el-upload {
+  display: flex;
+}
+
 .toolbar__search {
   width: min(360px, 100%);
 }

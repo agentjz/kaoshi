@@ -1,11 +1,11 @@
 import { expect, test } from '@playwright/test'
 
 async function loginDemo(page: import('@playwright/test').Page) {
-  await page.goto('/kaoshi/login', { waitUntil: 'domcontentloaded' })
+  await page.goto('/CET-4/login', { waitUntil: 'domcontentloaded' })
   await page.getByLabel('账号').fill('admin')
   await page.getByLabel('密码').fill('password')
   await page.getByRole('button', { name: '进入平台' }).click()
-  await expect(page).toHaveURL(/\/kaoshi\/dashboard/)
+  await expect(page).toHaveURL(/\/CET-4\/dashboard/)
   await expect(page.getByRole('menuitem', { name: '题库管理' })).toBeVisible()
   await expect.poll(() => page.evaluate(() => window.localStorage.getItem('kaoshi.accessToken'))).toBeNull()
   await expect.poll(() => page.evaluate(() => window.localStorage.getItem('kaoshi.currentUser'))).toBeNull()
@@ -46,6 +46,6 @@ test('GitHub Pages demo 使用同源 UI 和内存数据完成核心体验', asyn
   await expect(page.getByText('评分已保存')).toBeVisible()
 
   await page.reload({ waitUntil: 'domcontentloaded' })
-  await expect(page).toHaveURL(/\/kaoshi\/login/)
+  await expect(page).toHaveURL(/\/CET-4\/login/)
   await expect.poll(() => page.evaluate(() => window.localStorage.getItem('kaoshi.accessToken'))).toBeNull()
 })

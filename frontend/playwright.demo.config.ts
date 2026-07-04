@@ -7,7 +7,7 @@ export default defineConfig({
   reporter: [['list']],
   webServer: {
     command: 'npm run preview:demo',
-    url: 'http://127.0.0.1:4174/kaoshi/login',
+    url: 'http://127.0.0.1:4174/CET-4/login',
     reuseExistingServer: !process.env.CI,
     timeout: 120000,
   },

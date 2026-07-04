@@ -4,7 +4,7 @@ import vue from '@vitejs/plugin-vue'
 import { defineConfig } from 'vite'
 
 export default defineConfig(({ mode }) => ({
-  base: mode === 'demo' ? '/kaoshi/' : '/',
+  base: mode === 'demo' ? '/CET-4/' : '/',
   plugins: [vue()],
   resolve: {
     alias: {

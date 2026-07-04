@@ -3,7 +3,7 @@
     <section class="login-panel">
       <div class="login-copy">
         <span class="eyebrow">考试</span>
-        <h1>考试与考试管理平台</h1>
+        <h1>CET-4 四级考试平台</h1>
         <p>统一管理身份、权限、题库、试卷、考试、作答、评分和成绩归档。</p>
       </div>
 

@@ -115,7 +115,7 @@ const router = createRouter({
 })
 
 router.beforeEach(async (to) => {
-  document.title = `${String(to.meta.title || 'kaoshi')} - kaoshi`
+  document.title = `${String(to.meta.title || 'CET-4 四级考试平台')} - CET-4 四级考试平台`
   const auth = useAuthStore()
   if (to.meta.public) {
     if (to.name === 'login' && auth.isAuthenticated) {

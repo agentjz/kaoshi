@@ -1,92 +1,45 @@
-# kaoshi
+# CET-4
 
 <p align="center">
-  <strong>现代化考试与考试管理平台</strong>
+  <strong>CET-4 四级考试平台</strong>
 </p>
 
 <p align="center">
-  <a href="https://github.com/agentjz/kaoshi"><img alt="GitHub Repo" src="https://img.shields.io/badge/GitHub-agentjz%2Fkaoshi-181717?logo=github"></a>
+  <a href="https://github.com/agentjz/CET-4"><img alt="GitHub Repo" src="https://img.shields.io/badge/GitHub-agentjz%2FCET--4-181717?logo=github"></a>
   <img alt="Java 21" src="https://img.shields.io/badge/Java-21-007396?logo=openjdk">
   <img alt="Spring Boot 3" src="https://img.shields.io/badge/Spring%20Boot-3-6DB33F?logo=springboot&logoColor=white">
   <img alt="Vue 3" src="https://img.shields.io/badge/Vue-3-42B883?logo=vuedotjs&logoColor=white">
-  <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white">
+  <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript">
   <img alt="License MIT" src="https://img.shields.io/badge/License-MIT-blue">
 </p>
 
-kaoshi 面向学校、机构、团队和个人考试场景，把题库建设、试题维护、考试发布、在线作答、客观题自动评分、主观题人工阅卷和成绩归档组织成一套清晰、稳定、可扩展的系统。
+## 🌐 在线体验
 
-它覆盖考试平台的核心链路：题目沉淀、试卷组织、考试发布、考生作答、阅卷和成绩归档。
+在线项目体验地址：[https://agentjz.github.io/CET-4/](https://agentjz.github.io/CET-4/)
 
-## 🎯 产品方向
+体验账号：`admin` / `password`
 
-- 控制台按“控制台、在线考试、考试管理、系统管理”组织主菜单。
-- 在线考试用于考生查看考试任务、准备考试、按考试配置作答、提交试卷和查看成绩。
-- 考试管理按成熟考试平台心智组织为“题库管理、考试管理”；题库管理承载试题分类、题库树、试题列表和试题编辑，试卷是考试创建时的内部组卷结果，不作为显性同级菜单。
-- 系统管理按“角色管理、部门管理、用户管理”组织，先定义权限边界，再维护组织结构和人员。
-- 数据模型以用户、部门、权限、题库、试题、考试规则、发布快照、作答快照、阅卷状态和成绩为核心。
-- 当前快速演进期默认清空重建本地数据，不做旧库迁移兼容。
-- 富媒体题目支持真实文件上传，也支持本地音频、png 图片、jpg 图片和文件链接附件能力。
-- 系统按前后端分离方式建设，便于后续扩展 H5、桌面 Web 和小程序考试入口。
+CET-4 是一个面向大学英语四级练习和考试管理的现代化考试平台，覆盖题库建设、考试发布、在线作答、自动评分、人工阅卷和成绩归档等核心流程。
 
-## ✨ 能做什么
+## ✨ 已实现功能
 
-- 🧑‍💼 管理角色、权限、菜单、部门和用户；用户支持 Excel 模板、导入和导出，新用户使用默认密码并在首次登录时强制改密。
-- 🧑‍💼 管理部门树，支持在线新建、编辑、删除和树形选择。
-- 📚 维护试题分类、题库、单选题、多选题、写作题、选项、答案、解析、难度和附件；附件支持上移下移排序，试题 Excel 支持文本题目导入导出，富媒体在网页试题编辑页维护。
-- 🚀 保存考试草稿、发布考试、关闭考试和删除无作答考试；支持显式更新试卷、按题库规则生成题目、手工选题、题目排序、试卷预览、总分、及格分、考试时长、限时、可考次数、题目显示方式、题目顺序和部门开放范围。
-- ⏱️ 在线作答，支持准备考试、倒计时、逐题显示或整卷一页、题目正文题型标签、按题型答题卡、上一题、下一题、附件展示、整卷答案快照自动保存、提交前保存、提交确认和提交锁定。
-- ✅ 自动评分与人工阅卷，归档客观题分、主观题分、正确题数、得分、总分、提交记录和逐题复盘；管理员可以按考试查看成绩、保存写作评分并显式完成阅卷。
-- 🧪 真实浏览器验收，覆盖登录、管理端操作、草稿无魔法更新、考试作答、写作题保存读回、阅卷保存读回、完成阅卷和成绩展示。
-- 🌐 纯前端演示版，使用同一套 Vue 页面和组件，通过 demo adapter 在浏览器内存中模拟后端数据，可部署到 GitHub Pages；刷新页面恢复初始演示数据，不写 `localStorage`。
-
-## 🧩 产品模块
-
-| 模块 | 能力 |
-| --- | --- |
-| 身份权限 | 登录、首次改密、当前用户、角色管理、部门管理、用户管理、用户 Excel、角色权限配置 |
-| 题库试题 | 试题分类、题库、单选题、多选题、写作题、选项、答案、解析、附件排序、Excel 导入导出 |
-| 考试管理 | 题库管理、考试管理、显式更新试卷、草稿保存、发布快照、考试状态维护、删除边界、部门开放 |
-| 在线作答 | 考试中心、准备考试、逐题或整卷作答、倒计时、答题卡、选择题作答、写作题文本作答、提交锁定 |
-| 成绩归档 | 自动评分、人工阅卷、阅卷保存、完成阅卷、个人成绩、按考试查看成绩、成绩详情、题目明细、正确答案、解析 |
-| 工程验收 | 后端测试、前端单测、类型检查、构建、真实 E2E |
+- 控制台：统一入口、菜单导航、页面标签和登录状态管理。
+- 在线考试：考试中心、准备考试、倒计时作答、答题卡、答案保存、提交锁定和成绩查看。
+- 题库管理：题库树、试题分类、单选题、多选题、写作题、选项、答案、解析、难度和附件维护。
+- 考试管理：考试草稿、发布、关闭、删除边界、规则组卷、手工选题、显式更新试卷、试卷预览和下载。
+- 成绩管理：选择题自动评分、写作题人工阅卷、阅卷进度保存、最终成绩确认和成绩详情复盘。
+- 系统管理：角色管理、部门管理、用户管理、权限配置、用户导入和用户导出。
+- 富媒体题目：支持音频、图片和文件附件展示，适合四级听力、阅读、写作等题型场景。
+- 演示体验：内置管理员、考生、题库、考试、作答和成绩样例，打开即可体验完整链路。
 
 ## 🛠️ 技术栈
 
 - 后端：Java 21、Spring Boot 3、MyBatis-Plus、Spring Security、JWT
 - 数据：MySQL 8、Redis、Flyway
-- Excel：Apache POI
 - 前端：Vue 3、TypeScript、Vite、Pinia、Vue Router、Element Plus
+- 文件与导入导出：Apache POI、文件附件
 - 测试：JUnit、MockMvc、Vitest、Playwright
-- 部署：Docker Compose
-
-## 🌐 在线演示构建
-
-kaoshi 支持 GitHub Pages 纯前端演示版。演示版不是第二套页面，而是同一套 Vue 前端在 `VITE_APP_MODE=demo` 下切换到内存 API adapter：
-
-- 正式版继续请求真实后端、MySQL 和 Redis。
-- 演示版不请求 `/api`，不写 `localStorage`，刷新页面恢复内置 seed。
-- 演示版内置 admin、张三、部门、角色、CET4 题库、考试、作答和成绩数据。
-- `frontend/.env.demo` 只包含公开构建模式配置，不包含密钥。
-
-本地构建和验收：
-
-```powershell
-cd frontend
-npm.cmd run build:demo
-npm.cmd run test:e2e:demo
-```
-
-GitHub Pages 部署由 `.github/workflows/demo-pages.yml` 在 `master` 推送后自动构建 `frontend/dist` 并发布。
-
-## 🧭 项目状态
-
-当前已完成考试平台基础主链路：
-
-`登录 -> 管理题库/试题/考试 -> 准备考试 -> 在线作答 -> 自动评分/人工阅卷 -> 成绩复盘`
-
-本地开发入口 `python .\start_dev.py` 会先清空 Docker 中的 kaoshi 数据，再按当前初始化脚本重建并启动服务。
-
-本地开发、测试和验收入口记录在 [AGENTS.md](./AGENTS.md)。
+- 部署：Docker Compose、GitHub Pages
 
 ## License
 

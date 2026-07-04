@@ -1,10 +1,10 @@
-﻿# kaoshi Spec
+﻿# CET-4 Spec
 
-`spec.md` 是 kaoshi 的当前产品事实主干。它记录已经确认的产品定位、业务边界、核心概念、用户路径、技术方向和验收标准。
+`spec.md` 是 CET-4 四级考试平台的当前产品事实主干。它记录已经确认的产品定位、业务边界、核心概念、用户路径、技术方向和验收标准。
 
 ## 1. 产品定位
 
-kaoshi 是一个现代化考试与考试管理平台。
+CET-4 是一个面向大学英语四级练习和考试管理的现代化考试平台。内部 Java 包名、Docker 资源、数据库、后端 artifact、环境变量和 localStorage key 可以继续使用 `kaoshi` 作为工程服务名。
 
 平台服务于学校、机构、团队和个人组织考试的完整流程：建设题库、维护试题、保存考试草稿、发布考试、考生作答、客观题自动评分、主观题人工阅卷、成绩归档和结果查看。考试发布快照和作答快照承载题目、选项、答案、文本作答、分值和附件的历史事实，不作为管理端显性同级入口。
 
@@ -99,7 +99,7 @@ kaoshi 是一个现代化考试与考试管理平台。
 
 - 根目录存在 `README.md`、`AGENTS.md`、`spec.md`、`plan.example.md`、`LICENSE`、`SECURITY.md`、`CONTRIBUTING.md` 和 `.gitignore`。
 - `.codex/skills/` 中存在开发、UI 和 plan 三个项目级 skill。
-- 文档统一使用 kaoshi 作为项目名。
+- 公开产品名统一使用 CET-4 四级考试平台；内部工程服务名可以保留 kaoshi。
 - 文档只记录当前确认的产品方向和工程规则。
 - `backend/` 存在可测试的 Spring Boot 工程。
 - `frontend/` 存在可类型检查和可构建的 Vue 3 TypeScript 工程。
@@ -118,5 +118,5 @@ kaoshi 是一个现代化考试与考试管理平台。
 
 ## 7. 开源协议
 
-kaoshi 使用 MIT License。完整协议文本以根目录 `LICENSE` 为准。
+CET-4 使用 MIT License。完整协议文本以根目录 `LICENSE` 为准。
 

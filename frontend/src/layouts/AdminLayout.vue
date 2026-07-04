@@ -6,8 +6,8 @@
           <el-icon><Reading /></el-icon>
         </span>
         <div>
-          <strong>kaoshi</strong>
-          <small>考试管理平台</small>
+          <strong>CET-4</strong>
+          <small>四级考试平台</small>
         </div>
       </div>
       <el-menu router :default-active="activeMenu" :default-openeds="defaultOpeneds" class="menu">

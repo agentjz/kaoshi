@@ -69,12 +69,14 @@ export function buildBankTree(categories: NamedCategory[], banks: QuestionBank[]
 export function createQuestionPayload(bankId: number): QuestionPayload {
   return {
     bankId,
+    nodeId: null,
     type: 'SINGLE_CHOICE',
     stem: '',
     analysis: '',
     difficulty: 'EASY',
     status: 'ACTIVE',
     options: defaultOptions(),
+    correctLabels: ['A'],
     attachments: [],
   }
 }
@@ -137,6 +139,7 @@ function optionSignature(question: Question) {
 export function questionToPayload(question: Question): QuestionPayload {
   return {
     bankId: question.bankId,
+    nodeId: null,
     type: question.type,
     stem: question.stem,
     sectionCode: question.sectionCode,
@@ -153,6 +156,7 @@ export function questionToPayload(question: Question): QuestionPayload {
     difficulty: question.difficulty,
     status: question.status,
     options: question.options.map((option) => ({ label: option.label, content: option.content, correct: option.correct })),
+    correctLabels: question.options.filter((option) => option.correct).map((option) => option.label),
     attachments: question.attachments.map((attachment) => ({
       fileName: attachment.fileName,
       fileUrl: attachment.fileUrl,

@@ -91,6 +91,19 @@ public interface QuestionMapper {
     long countBankById(@Param("id") Long id);
 
     @Select("""
+            select count(*)
+            from question_nodes
+            where id = #{nodeId}
+              and bank_id = #{bankId}
+              and node_type = #{nodeType}
+            """)
+    long countNodeByIdAndBankAndType(
+            @Param("nodeId") Long nodeId,
+            @Param("bankId") Long bankId,
+            @Param("nodeType") String nodeType
+    );
+
+    @Select("""
             select id
             from question_nodes
             where bank_id = #{bankId}
@@ -197,6 +210,22 @@ public interface QuestionMapper {
             @Param("answerLabel") String answerLabel,
             @Param("sortOrder") int sortOrder
     );
+
+    @Select("""
+            select answer_label
+            from question_answer_labels
+            where question_id = #{questionId}
+            order by sort_order, id
+            """)
+    List<String> findAnswerLabels(@Param("questionId") Long questionId);
+
+    @Select("""
+            select option_label
+            from question_node_options
+            where node_id = #{nodeId}
+            order by sort_order, id
+            """)
+    List<String> findNodeOptionLabels(@Param("nodeId") Long nodeId);
 
     @Select("select * from question_attachments where question_id = #{questionId} order by sort_order, id")
     List<QuestionAttachment> findAttachments(@Param("questionId") Long questionId);

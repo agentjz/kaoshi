@@ -12,8 +12,12 @@ import type {
   Question,
   QuestionAttachmentPayload,
   QuestionBank,
+  QuestionBankPackageImportResult,
   QuestionBankPayload,
   QuestionCategoryPayload,
+  QuestionContentNode,
+  QuestionContentTree,
+  QuestionNodePayload,
   QuestionPayload,
 } from './exam-business-types'
 
@@ -35,8 +39,14 @@ export type {
   QuestionAttachment,
   QuestionAttachmentPayload,
   QuestionBank,
+  QuestionBankPackageImportResult,
   QuestionBankPayload,
   QuestionCategoryPayload,
+  QuestionContentNode,
+  QuestionContentTree,
+  QuestionNodeOption,
+  QuestionNodeOptionPayload,
+  QuestionNodePayload,
   QuestionOption,
   QuestionOptionPayload,
   QuestionPayload,
@@ -73,6 +83,44 @@ export async function createQuestionBank(payload: QuestionBankPayload): Promise<
 
 export async function updateQuestionBank(id: number, payload: QuestionBankPayload): Promise<QuestionBank> {
   const response = await apiClient.put<ApiResponse<QuestionBank>>(`/api/admin/question-banks/${id}`, payload)
+  return response.data.data
+}
+
+export async function fetchQuestionContentTree(bankId: number): Promise<QuestionContentTree> {
+  const response = await apiClient.get<ApiResponse<QuestionContentTree>>(`/api/admin/question-banks/${bankId}/content-tree`)
+  return response.data.data
+}
+
+export async function createQuestionNode(bankId: number, payload: QuestionNodePayload): Promise<QuestionContentNode> {
+  const response = await apiClient.post<ApiResponse<QuestionContentNode>>(`/api/admin/question-banks/${bankId}/nodes`, payload)
+  return response.data.data
+}
+
+export async function updateQuestionNode(nodeId: number, payload: QuestionNodePayload): Promise<QuestionContentNode> {
+  const response = await apiClient.put<ApiResponse<QuestionContentNode>>(`/api/admin/question-banks/nodes/${nodeId}`, payload)
+  return response.data.data
+}
+
+export async function deleteQuestionNode(nodeId: number): Promise<void> {
+  await apiClient.delete<ApiResponse<void>>(`/api/admin/question-banks/nodes/${nodeId}`)
+}
+
+export async function importQuestionsToGroup(nodeId: number, file: File): Promise<ExcelImportResult> {
+  const form = new FormData()
+  form.append('file', file)
+  const response = await apiClient.post<ApiResponse<ExcelImportResult>>(`/api/admin/question-banks/nodes/${nodeId}/questions/import`, form)
+  return response.data.data
+}
+
+export async function downloadQuestionBankPackage(bankId: number): Promise<Blob> {
+  const response = await apiClient.get(`/api/admin/question-banks/${bankId}/package`, { responseType: 'blob' })
+  return response.data
+}
+
+export async function importQuestionBankPackage(file: File): Promise<QuestionBankPackageImportResult> {
+  const form = new FormData()
+  form.append('file', file)
+  const response = await apiClient.post<ApiResponse<QuestionBankPackageImportResult>>('/api/admin/question-banks/package/import', form)
   return response.data.data
 }
 

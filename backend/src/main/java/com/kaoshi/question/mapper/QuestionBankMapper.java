@@ -20,6 +20,9 @@ public interface QuestionBankMapper {
     @Select("select * from question_categories where id = #{id}")
     QuestionCategory findCategoryById(@Param("id") Long id);
 
+    @Select("select * from question_categories where name = #{name} limit 1")
+    QuestionCategory findCategoryByName(@Param("name") String name);
+
     @Select("select count(*) from question_categories where id = #{id}")
     long countCategoryById(@Param("id") Long id);
 
@@ -52,6 +55,17 @@ public interface QuestionBankMapper {
 
     @Select("select * from question_banks where id = #{id}")
     QuestionBank findBankById(@Param("id") Long id);
+
+    @Select("select count(*) from question_banks where name = #{name}")
+    int countBankByName(@Param("name") String name);
+
+    @Select("""
+            select c.name
+            from question_banks b
+            join question_categories c on c.id = b.category_id
+            where b.id = #{bankId}
+            """)
+    String findCategoryNameByBankId(@Param("bankId") Long bankId);
 
     @Select("select name from question_categories where id = #{id}")
     String findCategoryName(@Param("id") Long id);

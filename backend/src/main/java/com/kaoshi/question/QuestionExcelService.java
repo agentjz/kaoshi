@@ -133,6 +133,7 @@ final class QuestionExcelService {
         }
         return new QuestionSaveRequest(
                 bankId,
+                null,
                 type,
                 stem,
                 null,
@@ -149,6 +150,10 @@ final class QuestionExcelService {
                 difficulty,
                 "ACTIVE",
                 options,
+                options.stream()
+                        .filter(QuestionOptionRequest::correct)
+                        .map(QuestionOptionRequest::label)
+                        .toList(),
                 List.of()
         );
     }

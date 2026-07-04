@@ -8,6 +8,7 @@ import java.util.List;
 
 public record QuestionSaveRequest(
         @NotNull Long bankId,
+        Long nodeId,
         @NotBlank String type,
         @NotBlank String stem,
         String sectionCode,
@@ -24,6 +25,7 @@ public record QuestionSaveRequest(
         @NotBlank String difficulty,
         @NotBlank String status,
         List<@Valid QuestionOptionRequest> options,
+        List<String> correctLabels,
         List<@Valid QuestionAttachmentRequest> attachments
 ) {
 }

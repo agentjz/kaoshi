@@ -9,9 +9,7 @@ import com.kaoshi.question.domain.Question;
 import com.kaoshi.question.domain.QuestionAttachment;
 import com.kaoshi.question.domain.QuestionOption;
 import com.kaoshi.question.dto.QuestionAttachmentRequest;
-import com.kaoshi.question.dto.QuestionAttachmentResponse;
 import com.kaoshi.question.dto.QuestionOptionRequest;
-import com.kaoshi.question.dto.QuestionOptionResponse;
 import com.kaoshi.question.dto.QuestionResponse;
 import com.kaoshi.question.dto.QuestionSaveRequest;
 import com.kaoshi.question.mapper.QuestionMapper;
@@ -25,14 +23,17 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.LinkedHashSet;
 
 @Service
 public class QuestionService {
     private final QuestionMapper questionMapper;
     private final QuestionExcelService excelService;
+    private final QuestionResponseAssembler responseAssembler;
 
-    public QuestionService(QuestionMapper questionMapper) {
+    public QuestionService(QuestionMapper questionMapper, QuestionResponseAssembler responseAssembler) {
         this.questionMapper = questionMapper;
+        this.responseAssembler = responseAssembler;
         this.excelService = new QuestionExcelService(questionMapper);
     }
 
@@ -41,13 +42,13 @@ public class QuestionService {
         List<QuestionResponse> records = questionMapper
                 .findQuestions(bankId, request.keywordLike(), request.size(), request.offset())
                 .stream()
-                .map(this::toResponse)
+                .map(responseAssembler::toResponse)
                 .toList();
         return new PageResponse<>(records, total, request.page(), request.size());
     }
 
     public QuestionResponse detail(Long id) {
-        return toResponse(findQuestion(id));
+        return responseAssembler.toResponse(findQuestion(id));
     }
 
     public ResponseEntity<byte[]> template() {
@@ -70,6 +71,7 @@ public class QuestionService {
         fillQuestion(question, request);
         questionMapper.insertQuestion(question);
         replaceOptions(question.getId(), request.options());
+        replaceAnswerLabels(question.getId(), correctLabels(request));
         replaceAttachments(question.getId(), request.attachments());
         return detail(question.getId());
     }
@@ -81,6 +83,7 @@ public class QuestionService {
         fillQuestion(question, request);
         questionMapper.updateQuestion(question);
         replaceOptions(id, request.options());
+        replaceAnswerLabels(id, correctLabels(request));
         replaceAttachments(id, request.attachments());
         return detail(id);
     }
@@ -97,6 +100,9 @@ public class QuestionService {
         if (questionMapper.countBankById(request.bankId()) == 0) {
             throw new BusinessException(ErrorCode.VALIDATION_FAILED, "题库不存在");
         }
+        if (request.nodeId() != null && questionMapper.countNodeByIdAndBankAndType(request.nodeId(), request.bankId(), "GROUP") == 0) {
+            throw new BusinessException(ErrorCode.VALIDATION_FAILED, "题目必须绑定到当前题库下的题组节点");
+        }
         QuestionType type = QuestionType.require(request.type());
         if (!List.of("EASY", "HARD").contains(request.difficulty())) {
             throw new BusinessException(ErrorCode.VALIDATION_FAILED, "试题难度不合法");
@@ -111,6 +117,17 @@ public class QuestionService {
             }
             return;
         }
+        List<String> correctLabels = correctLabels(request);
+        if (options.isEmpty() && request.nodeId() != null) {
+            validateCorrectLabels(type, correctLabels);
+            Set<String> sharedLabels = new HashSet<>(questionMapper.findNodeOptionLabels(request.nodeId()));
+            for (String label : correctLabels) {
+                if (!sharedLabels.contains(label)) {
+                    throw new BusinessException(ErrorCode.VALIDATION_FAILED, "正确答案引用了不存在的共享选项：" + label);
+                }
+            }
+            return;
+        }
         if (options.size() < 2) {
             throw new BusinessException(ErrorCode.VALIDATION_FAILED, "试题至少需要两个选项");
         }
@@ -120,18 +137,30 @@ public class QuestionService {
                 throw new BusinessException(ErrorCode.VALIDATION_FAILED, "选项标签不能重复");
             }
         }
-        long correctCount = options.stream().filter(QuestionOptionRequest::correct).count();
+        validateCorrectLabels(type, correctLabels);
+        Set<String> optionLabels = options.stream()
+                .map(QuestionOptionRequest::label)
+                .collect(java.util.stream.Collectors.toSet());
+        for (String label : correctLabels) {
+            if (!optionLabels.contains(label)) {
+                throw new BusinessException(ErrorCode.VALIDATION_FAILED, "正确答案引用了不存在的选项：" + label);
+            }
+        }
+    }
+
+    private void validateCorrectLabels(QuestionType type, List<String> correctLabels) {
+        long correctCount = correctLabels.size();
         if (type.singleAnswer() && correctCount != 1) {
             throw new BusinessException(ErrorCode.VALIDATION_FAILED, type.label() + "必须且只能有一个正确答案");
         }
-        if (QuestionType.MULTIPLE_CHOICE.code().equals(request.type()) && correctCount < 2) {
+        if (QuestionType.MULTIPLE_CHOICE.code().equals(type.code()) && correctCount < 2) {
             throw new BusinessException(ErrorCode.VALIDATION_FAILED, "多选题至少需要两个正确答案");
         }
     }
 
     private void fillQuestion(Question question, QuestionSaveRequest request) {
         question.setBankId(request.bankId());
-        question.setNodeId(ensureQuestionNode(request));
+        question.setNodeId(request.nodeId() == null ? ensureQuestionNode(request) : request.nodeId());
         question.setType(request.type());
         question.setStem(request.stem());
         question.setSectionCode(request.sectionCode());
@@ -222,6 +251,33 @@ public class QuestionService {
         }
     }
 
+    private void replaceAnswerLabels(Long questionId, List<String> correctLabels) {
+        questionMapper.deleteAnswerLabels(questionId);
+        int sort = 10;
+        for (String label : correctLabels) {
+            questionMapper.insertAnswerLabel(questionId, label, sort);
+            sort += 10;
+        }
+    }
+
+    private List<String> correctLabels(QuestionSaveRequest request) {
+        if (request.correctLabels() != null && !request.correctLabels().isEmpty()) {
+            return request.correctLabels().stream()
+                    .map(label -> label == null ? "" : label.trim().toUpperCase())
+                    .filter(label -> !label.isBlank())
+                    .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new))
+                    .stream()
+                    .toList();
+        }
+        return (request.options() == null ? List.<QuestionOptionRequest>of() : request.options()).stream()
+                .filter(QuestionOptionRequest::correct)
+                .map(option -> option.label() == null ? "" : option.label().trim().toUpperCase())
+                .filter(label -> !label.isBlank())
+                .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new))
+                .stream()
+                .toList();
+    }
+
     private void replaceAttachments(Long questionId, List<QuestionAttachmentRequest> attachments) {
         questionMapper.deleteAttachments(questionId);
         if (attachments == null) {
@@ -234,52 +290,4 @@ public class QuestionService {
         }
     }
 
-    private QuestionResponse toResponse(Question question) {
-        return new QuestionResponse(
-                question.getId(),
-                question.getBankId(),
-                questionMapper.findBankName(question.getBankId()),
-                question.getType(),
-                question.getStem(),
-                question.getSectionCode(),
-                question.getSectionTitle(),
-                question.getSectionSortOrder(),
-                question.getGroupCode(),
-                question.getGroupTitle(),
-                question.getGroupDirection(),
-                question.getGroupMaterial(),
-                question.getGroupSortOrder(),
-                question.getItemLabel(),
-                question.getItemStem(),
-                question.getAnalysis(),
-                question.getDifficulty(),
-                question.getStatus(),
-                questionMapper.findOptions(question.getId()).stream()
-                        .map(this::toOptionResponse)
-                        .toList(),
-                questionMapper.findAttachments(question.getId()).stream()
-                        .map(this::toAttachmentResponse)
-                        .toList()
-        );
-    }
-
-    private QuestionOptionResponse toOptionResponse(QuestionOption option) {
-        return new QuestionOptionResponse(
-                option.getId(),
-                option.getOptionLabel(),
-                option.getContent(),
-                option.getCorrect(),
-                option.getSortOrder()
-        );
-    }
-
-    private QuestionAttachmentResponse toAttachmentResponse(QuestionAttachment attachment) {
-        return new QuestionAttachmentResponse(
-                attachment.getId(),
-                attachment.getFileName(),
-                attachment.getFileUrl(),
-                attachment.getMediaType(),
-                attachment.getSortOrder()
-        );
-    }
 }

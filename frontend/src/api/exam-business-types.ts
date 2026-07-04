@@ -63,6 +63,7 @@ export interface QuestionAttachment extends QuestionAttachmentPayload {
 
 export interface QuestionPayload {
   bankId: number
+  nodeId?: number | null
   type: QuestionTypeCode
   stem: string
   sectionCode?: string | null
@@ -79,6 +80,7 @@ export interface QuestionPayload {
   difficulty: 'EASY' | 'HARD'
   status: 'ACTIVE' | 'DISABLED'
   options: QuestionOptionPayload[]
+  correctLabels?: string[]
   attachments: QuestionAttachmentPayload[]
 }
 
@@ -103,6 +105,57 @@ export interface Question {
   status: QuestionPayload['status']
   options: QuestionOption[]
   attachments: QuestionAttachment[]
+}
+
+export interface QuestionNodeOptionPayload {
+  label: string
+  content: string
+}
+
+export interface QuestionNodeOption extends QuestionNodeOptionPayload {
+  id: number
+  sortOrder: number
+}
+
+export interface QuestionContentNode {
+  id: number
+  parentId: number | null
+  nodeCode: string
+  nodeType: 'SECTION' | 'GROUP'
+  title: string | null
+  direction: string | null
+  material: string | null
+  sortOrder: number
+  sharedOptions: QuestionNodeOption[]
+  attachments: QuestionAttachment[]
+  questions: Question[]
+  children: QuestionContentNode[]
+}
+
+export interface QuestionContentTree {
+  bankId: number
+  bankName: string
+  sections: QuestionContentNode[]
+  ungroupedQuestions: Question[]
+}
+
+export interface QuestionNodePayload {
+  parentId?: number | null
+  nodeCode: string
+  nodeType: QuestionContentNode['nodeType']
+  title: string
+  direction: string
+  material: string
+  sortOrder: number
+  sharedOptions: QuestionNodeOptionPayload[]
+  attachments: QuestionAttachmentPayload[]
+}
+
+export interface QuestionBankPackageImportResult {
+  bankId: number
+  bankName: string
+  nodeCount: number
+  questionCount: number
 }
 
 export interface ExamPayload {

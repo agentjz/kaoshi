@@ -1,14 +1,14 @@
 <template>
   <article :id="panelId" class="question-panel">
     <div class="question-title">
-      <strong>{{ index + 1 }}. {{ question.stem }}</strong>
+      <strong>{{ questionTitle }}</strong>
       <div class="question-title__meta">
         <el-tag effect="plain">{{ questionTypeText(question.type) }}</el-tag>
         <el-tag>{{ question.score }} 分</el-tag>
       </div>
     </div>
 
-    <div v-if="question.attachments.length" class="question-media">
+    <div v-if="showAttachments && question.attachments.length" class="question-media">
       <template v-for="attachment in question.attachments" :key="attachment.id">
         <img
           v-if="attachment.mediaType === 'IMAGE'"
@@ -22,7 +22,7 @@
     </div>
 
     <el-checkbox-group
-      v-if="question.type === 'MULTIPLE_CHOICE'"
+      v-if="isMultipleAnswerType(question.type)"
       v-model="multipleAnswers[question.questionId]"
       class="answer-options"
       :disabled="disabled"
@@ -32,8 +32,19 @@
         {{ option.label }}. {{ option.content }}
       </el-checkbox>
     </el-checkbox-group>
+    <el-select
+      v-else-if="isCompactSharedOptionQuestion"
+      v-model="singleAnswers[question.questionId]"
+      class="answer-select"
+      :disabled="disabled"
+      filterable
+      placeholder="选择答案"
+      @change="$emit('schedule-save', question)"
+    >
+      <el-option v-for="option in question.options" :key="option.id" :label="`${option.label}. ${option.content}`" :value="option.label" />
+    </el-select>
     <el-radio-group
-      v-else-if="question.type === 'SINGLE_CHOICE'"
+      v-else-if="isOptionBasedQuestion"
       v-model="singleAnswers[question.questionId]"
       class="answer-options"
       :disabled="disabled"
@@ -44,14 +55,14 @@
       </el-radio>
     </el-radio-group>
     <el-input
-      v-else-if="question.type === 'WRITING'"
+      v-else-if="isManualReviewType(question.type)"
       v-model="textAnswers[question.questionId]"
       type="textarea"
       :rows="8"
       maxlength="5000"
       show-word-limit
       resize="vertical"
-      placeholder="请输入写作答案"
+      :placeholder="`${questionTypeText(question.type)}答案`"
       :disabled="disabled"
       @input="$emit('schedule-save', question)"
       @blur="$emit('save-immediately', question)"
@@ -63,11 +74,13 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
+
 import type { ExamQuestion } from '@/api/exam-business'
 import type { MultipleAnswerMap, SingleAnswerMap, TextAnswerMap } from '@/utils/exam-session'
-import { questionTypeText } from '@/utils/question-types'
+import { isManualReviewType, isMultipleAnswerType, questionTypeMeta, questionTypeText } from '@/utils/question-types'
 
-withDefaults(defineProps<{
+const props = withDefaults(defineProps<{
   question: ExamQuestion
   index: number
   singleAnswers: SingleAnswerMap
@@ -75,15 +88,28 @@ withDefaults(defineProps<{
   textAnswers: TextAnswerMap
   disabled?: boolean
   panelId?: string
+  showAttachments?: boolean
+  compactSharedOptions?: boolean
 }>(), {
   disabled: false,
   panelId: undefined,
+  showAttachments: true,
+  compactSharedOptions: false,
 })
 
 defineEmits<{
   'schedule-save': [question: ExamQuestion]
   'save-immediately': [question: ExamQuestion]
 }>()
+
+const questionTitle = computed(() => {
+  const label = props.question.itemLabel || String(props.index + 1)
+  const stem = props.question.itemStem || props.question.stem
+  return stem ? `${label}. ${stem}` : label
+})
+
+const isOptionBasedQuestion = computed(() => questionTypeMeta(props.question.type).optionBased)
+const isCompactSharedOptionQuestion = computed(() => props.compactSharedOptions && ['WORD_BANK', 'MATCHING'].includes(props.question.type))
 </script>
 
 <style scoped>
@@ -117,6 +143,15 @@ defineEmits<{
 .answer-options {
   display: grid;
   gap: 10px;
+}
+
+.answer-select {
+  display: block;
+  width: min(100%, 520px);
+}
+
+.answer-select :deep(.el-select) {
+  width: 100%;
 }
 
 .answer-options :deep(.el-checkbox),

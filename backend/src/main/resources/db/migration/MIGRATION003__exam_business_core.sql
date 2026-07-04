@@ -21,18 +21,66 @@ create table question_banks (
   index idx_question_banks_status (status)
 );
 
+create table question_nodes (
+  id bigint primary key auto_increment,
+  bank_id bigint not null,
+  parent_id bigint null,
+  node_code varchar(128) not null,
+  node_type varchar(32) not null,
+  title varchar(255) null,
+  direction text null,
+  material text null,
+  sort_order int not null default 0,
+  created_at datetime not null default current_timestamp,
+  updated_at datetime not null default current_timestamp on update current_timestamp,
+  constraint fk_question_nodes_bank foreign key (bank_id) references question_banks (id),
+  constraint fk_question_nodes_parent foreign key (parent_id) references question_nodes (id),
+  constraint uk_question_nodes_code unique (bank_id, node_code),
+  index idx_question_nodes_bank_parent (bank_id, parent_id),
+  index idx_question_nodes_type (node_type)
+);
+
+create table question_node_options (
+  id bigint primary key auto_increment,
+  node_id bigint not null,
+  option_label varchar(8) not null,
+  content text not null,
+  sort_order int not null default 0,
+  created_at datetime not null default current_timestamp,
+  constraint fk_question_node_options_node foreign key (node_id) references question_nodes (id),
+  constraint uk_question_node_options_label unique (node_id, option_label),
+  index idx_question_node_options_node (node_id)
+);
+
+create table question_node_attachments (
+  id bigint primary key auto_increment,
+  node_id bigint not null,
+  file_name varchar(255) not null,
+  file_url varchar(1000) not null,
+  media_type varchar(32) not null,
+  sort_order int not null default 0,
+  created_at datetime not null default current_timestamp,
+  constraint fk_question_node_attachments_node foreign key (node_id) references question_nodes (id),
+  index idx_question_node_attachments_node (node_id)
+);
+
 create table questions (
   id bigint primary key auto_increment,
   bank_id bigint not null,
+  node_id bigint null,
   type varchar(32) not null,
   stem text not null,
+  item_label varchar(32) null,
+  item_stem text null,
   analysis text null,
   difficulty varchar(20) not null,
   status varchar(20) not null,
   created_at datetime not null default current_timestamp,
   updated_at datetime not null default current_timestamp on update current_timestamp,
   constraint fk_questions_bank foreign key (bank_id) references question_banks (id),
+  constraint fk_questions_node foreign key (node_id) references question_nodes (id),
   index idx_questions_bank (bank_id),
+  index idx_questions_node (node_id),
   index idx_questions_type (type),
   index idx_questions_status (status)
 );
@@ -48,6 +96,17 @@ create table question_options (
   constraint fk_question_options_question foreign key (question_id) references questions (id),
   constraint uk_question_options_label unique (question_id, option_label),
   index idx_question_options_question (question_id)
+);
+
+create table question_answer_labels (
+  id bigint primary key auto_increment,
+  question_id bigint not null,
+  answer_label varchar(8) not null,
+  sort_order int not null default 0,
+  created_at datetime not null default current_timestamp,
+  constraint fk_question_answer_labels_question foreign key (question_id) references questions (id),
+  constraint uk_question_answer_labels unique (question_id, answer_label),
+  index idx_question_answer_labels_question (question_id)
 );
 
 create table question_attachments (
@@ -100,22 +159,68 @@ create table exam_rules (
   index idx_exam_rules_exam (exam_id)
 );
 
+create table exam_draft_nodes (
+  id bigint primary key auto_increment,
+  exam_id bigint not null,
+  source_node_id bigint not null,
+  parent_id bigint null,
+  node_code varchar(128) not null,
+  node_type varchar(32) not null,
+  title varchar(255) null,
+  direction text null,
+  material text null,
+  sort_order int not null default 0,
+  created_at datetime not null default current_timestamp,
+  constraint fk_exam_draft_nodes_exam foreign key (exam_id) references exams (id),
+  constraint fk_exam_draft_nodes_parent foreign key (parent_id) references exam_draft_nodes (id),
+  constraint uk_exam_draft_nodes_source unique (exam_id, source_node_id),
+  index idx_exam_draft_nodes_exam_parent (exam_id, parent_id)
+);
+
+create table exam_draft_node_options (
+  id bigint primary key auto_increment,
+  draft_node_id bigint not null,
+  option_label varchar(8) not null,
+  content text not null,
+  sort_order int not null default 0,
+  created_at datetime not null default current_timestamp,
+  constraint fk_exam_draft_node_options_node foreign key (draft_node_id) references exam_draft_nodes (id),
+  index idx_exam_draft_node_options_node (draft_node_id)
+);
+
+create table exam_draft_node_attachments (
+  id bigint primary key auto_increment,
+  draft_node_id bigint not null,
+  file_name varchar(255) not null,
+  file_url varchar(1000) not null,
+  media_type varchar(32) not null,
+  sort_order int not null default 0,
+  created_at datetime not null default current_timestamp,
+  constraint fk_exam_draft_node_attachments_node foreign key (draft_node_id) references exam_draft_nodes (id),
+  index idx_exam_draft_node_attachments_node (draft_node_id)
+);
+
 create table exam_draft_questions (
   id bigint primary key auto_increment,
   exam_id bigint not null,
+  draft_node_id bigint null,
   source_question_id bigint not null,
   bank_id bigint not null,
   bank_name varchar(128) not null,
   type varchar(32) not null,
   stem text not null,
+  item_label varchar(32) null,
+  item_stem text null,
   analysis text null,
   score decimal(6,2) not null,
   sort_order int not null,
   created_at datetime not null default current_timestamp,
   constraint fk_exam_draft_questions_exam foreign key (exam_id) references exams (id),
+  constraint fk_exam_draft_questions_node foreign key (draft_node_id) references exam_draft_nodes (id),
   constraint fk_exam_draft_questions_source foreign key (source_question_id) references questions (id),
   constraint uk_exam_draft_questions_source unique (exam_id, source_question_id),
-  index idx_exam_draft_questions_exam (exam_id)
+  index idx_exam_draft_questions_exam (exam_id),
+  index idx_exam_draft_questions_node (draft_node_id)
 );
 
 create table exam_draft_options (
@@ -130,6 +235,16 @@ create table exam_draft_options (
   index idx_exam_draft_options_question (draft_question_id)
 );
 
+create table exam_draft_answer_labels (
+  id bigint primary key auto_increment,
+  draft_question_id bigint not null,
+  answer_label varchar(8) not null,
+  sort_order int not null default 0,
+  created_at datetime not null default current_timestamp,
+  constraint fk_exam_draft_answer_labels_question foreign key (draft_question_id) references exam_draft_questions (id),
+  index idx_exam_draft_answer_labels_question (draft_question_id)
+);
+
 create table exam_draft_attachments (
   id bigint primary key auto_increment,
   draft_question_id bigint not null,
@@ -142,18 +257,66 @@ create table exam_draft_attachments (
   index idx_exam_draft_attachments_question (draft_question_id)
 );
 
+create table exam_published_nodes (
+  id bigint primary key auto_increment,
+  exam_id bigint not null,
+  source_node_id bigint not null,
+  parent_id bigint null,
+  node_code varchar(128) not null,
+  node_type varchar(32) not null,
+  title varchar(255) null,
+  direction text null,
+  material text null,
+  sort_order int not null default 0,
+  created_at datetime not null default current_timestamp,
+  constraint fk_exam_published_nodes_exam foreign key (exam_id) references exams (id),
+  constraint fk_exam_published_nodes_parent foreign key (parent_id) references exam_published_nodes (id),
+  constraint uk_exam_published_nodes_source unique (exam_id, source_node_id),
+  index idx_exam_published_nodes_exam_parent (exam_id, parent_id)
+);
+
+create table exam_published_node_options (
+  id bigint primary key auto_increment,
+  published_node_id bigint not null,
+  option_label varchar(8) not null,
+  content text not null,
+  sort_order int not null default 0,
+  created_at datetime not null default current_timestamp,
+  constraint fk_exam_published_node_options_node foreign key (published_node_id) references exam_published_nodes (id),
+  index idx_exam_published_node_options_node (published_node_id)
+);
+
+create table exam_published_node_attachments (
+  id bigint primary key auto_increment,
+  published_node_id bigint not null,
+  file_name varchar(255) not null,
+  file_url varchar(1000) not null,
+  media_type varchar(32) not null,
+  sort_order int not null default 0,
+  created_at datetime not null default current_timestamp,
+  constraint fk_exam_published_node_attachments_node foreign key (published_node_id) references exam_published_nodes (id),
+  index idx_exam_published_node_attachments_node (published_node_id)
+);
+
 create table exam_published_questions (
   id bigint primary key auto_increment,
   exam_id bigint not null,
+  published_node_id bigint null,
   source_question_id bigint not null,
+  bank_id bigint not null,
+  bank_name varchar(128) not null,
   type varchar(32) not null,
   stem text not null,
+  item_label varchar(32) null,
+  item_stem text null,
   analysis text null,
   score decimal(6,2) not null,
   sort_order int not null,
   created_at datetime not null default current_timestamp,
   constraint fk_exam_published_questions_exam foreign key (exam_id) references exams (id),
-  index idx_exam_published_questions_exam (exam_id)
+  constraint fk_exam_published_questions_node foreign key (published_node_id) references exam_published_nodes (id),
+  index idx_exam_published_questions_exam (exam_id),
+  index idx_exam_published_questions_node (published_node_id)
 );
 
 create table exam_published_options (
@@ -166,6 +329,16 @@ create table exam_published_options (
   created_at datetime not null default current_timestamp,
   constraint fk_exam_published_options_question foreign key (published_question_id) references exam_published_questions (id),
   index idx_exam_published_options_question (published_question_id)
+);
+
+create table exam_published_answer_labels (
+  id bigint primary key auto_increment,
+  published_question_id bigint not null,
+  answer_label varchar(8) not null,
+  sort_order int not null default 0,
+  created_at datetime not null default current_timestamp,
+  constraint fk_exam_published_answer_labels_question foreign key (published_question_id) references exam_published_questions (id),
+  index idx_exam_published_answer_labels_question (published_question_id)
 );
 
 create table exam_published_attachments (
@@ -208,20 +381,66 @@ create table exam_attempts (
   index idx_exam_attempts_status (status)
 );
 
+create table exam_attempt_nodes (
+  id bigint primary key auto_increment,
+  attempt_id bigint not null,
+  source_node_id bigint not null,
+  parent_id bigint null,
+  node_code varchar(128) not null,
+  node_type varchar(32) not null,
+  title varchar(255) null,
+  direction text null,
+  material text null,
+  sort_order int not null default 0,
+  created_at datetime not null default current_timestamp,
+  constraint fk_exam_attempt_nodes_attempt foreign key (attempt_id) references exam_attempts (id),
+  constraint fk_exam_attempt_nodes_parent foreign key (parent_id) references exam_attempt_nodes (id),
+  constraint uk_exam_attempt_nodes_source unique (attempt_id, source_node_id),
+  index idx_exam_attempt_nodes_attempt_parent (attempt_id, parent_id)
+);
+
+create table exam_attempt_node_options (
+  id bigint primary key auto_increment,
+  attempt_node_id bigint not null,
+  option_label varchar(8) not null,
+  content text not null,
+  sort_order int not null default 0,
+  created_at datetime not null default current_timestamp,
+  constraint fk_exam_attempt_node_options_node foreign key (attempt_node_id) references exam_attempt_nodes (id),
+  index idx_exam_attempt_node_options_node (attempt_node_id)
+);
+
+create table exam_attempt_node_attachments (
+  id bigint primary key auto_increment,
+  attempt_node_id bigint not null,
+  file_name varchar(255) not null,
+  file_url varchar(1000) not null,
+  media_type varchar(32) not null,
+  sort_order int not null default 0,
+  created_at datetime not null default current_timestamp,
+  constraint fk_exam_attempt_node_attachments_node foreign key (attempt_node_id) references exam_attempt_nodes (id),
+  index idx_exam_attempt_node_attachments_node (attempt_node_id)
+);
+
 create table exam_attempt_questions (
   id bigint primary key auto_increment,
   attempt_id bigint not null,
+  attempt_node_id bigint null,
   published_question_id bigint not null,
   source_question_id bigint not null,
   type varchar(32) not null,
   stem text not null,
+  item_label varchar(32) null,
+  item_stem text null,
   analysis text null,
   score decimal(6,2) not null,
   sort_order int not null,
   display_order int not null,
   created_at datetime not null default current_timestamp,
   constraint fk_exam_attempt_questions_attempt foreign key (attempt_id) references exam_attempts (id),
-  index idx_exam_attempt_questions_attempt (attempt_id)
+  constraint fk_exam_attempt_questions_node foreign key (attempt_node_id) references exam_attempt_nodes (id),
+  index idx_exam_attempt_questions_attempt (attempt_id),
+  index idx_exam_attempt_questions_node (attempt_node_id)
 );
 
 create table exam_attempt_options (
@@ -234,6 +453,16 @@ create table exam_attempt_options (
   created_at datetime not null default current_timestamp,
   constraint fk_exam_attempt_options_question foreign key (attempt_question_id) references exam_attempt_questions (id),
   index idx_exam_attempt_options_question (attempt_question_id)
+);
+
+create table exam_attempt_answer_labels (
+  id bigint primary key auto_increment,
+  attempt_question_id bigint not null,
+  answer_label varchar(8) not null,
+  sort_order int not null default 0,
+  created_at datetime not null default current_timestamp,
+  constraint fk_exam_attempt_answer_labels_question foreign key (attempt_question_id) references exam_attempt_questions (id),
+  index idx_exam_attempt_answer_labels_question (attempt_question_id)
 );
 
 create table exam_attempt_attachments (
@@ -293,8 +522,8 @@ create table exam_results (
 
 insert into menus (id, code, title, path, parent_id, sort_order, icon)
 values
-  (6, 'question-banks', '????', '/exam/repo', null, 60, 'Collection'),
-  (7, 'exams', '????', '/exam/manage', null, 70, 'Timer');
+  (6, 'question-banks', '题库管理', '/exam/repo', null, 60, 'Collection'),
+  (7, 'exams', '考试管理', '/exam/manage', null, 70, 'Timer');
 
 insert into role_menus (role_id, menu_id)
 select 1, id from menus where id in (6, 7);

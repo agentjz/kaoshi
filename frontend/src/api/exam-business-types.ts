@@ -1,4 +1,4 @@
-import type { ExcelImportResult, PageResult } from './admin'
+﻿import type { ExcelImportResult, PageResult } from './admin'
 import type { QuestionTypeCode } from '@/utils/question-types'
 
 export type { ExcelImportResult, PageResult }
@@ -65,6 +65,16 @@ export interface QuestionPayload {
   bankId: number
   type: QuestionTypeCode
   stem: string
+  sectionCode?: string | null
+  sectionTitle?: string | null
+  sectionSortOrder?: number | null
+  groupCode?: string | null
+  groupTitle?: string | null
+  groupDirection?: string | null
+  groupMaterial?: string | null
+  groupSortOrder?: number | null
+  itemLabel?: string | null
+  itemStem?: string | null
   analysis: string
   difficulty: 'EASY' | 'HARD'
   status: 'ACTIVE' | 'DISABLED'
@@ -78,6 +88,16 @@ export interface Question {
   bankName: string
   type: QuestionPayload['type']
   stem: string
+  sectionCode?: string | null
+  sectionTitle?: string | null
+  sectionSortOrder?: number | null
+  groupCode?: string | null
+  groupTitle?: string | null
+  groupDirection?: string | null
+  groupMaterial?: string | null
+  groupSortOrder?: number | null
+  itemLabel?: string | null
+  itemStem?: string | null
   analysis: string | null
   difficulty: QuestionPayload['difficulty']
   status: QuestionPayload['status']
@@ -129,6 +149,16 @@ export interface ExamPaperQuestion extends ExamPaperQuestionPayload {
   bankName: string
   type: QuestionPayload['type']
   stem: string
+  sectionCode?: string | null
+  sectionTitle?: string | null
+  sectionSortOrder?: number | null
+  groupCode?: string | null
+  groupTitle?: string | null
+  groupDirection?: string | null
+  groupMaterial?: string | null
+  groupSortOrder?: number | null
+  itemLabel?: string | null
+  itemStem?: string | null
 }
 
 export interface Exam {
@@ -163,6 +193,16 @@ export interface ExamQuestion {
   questionId: number
   type: QuestionPayload['type']
   stem: string
+  sectionCode?: string | null
+  sectionTitle?: string | null
+  sectionSortOrder?: number | null
+  groupCode?: string | null
+  groupTitle?: string | null
+  groupDirection?: string | null
+  groupMaterial?: string | null
+  groupSortOrder?: number | null
+  itemLabel?: string | null
+  itemStem?: string | null
   score: number
   sortOrder: number
   selectedLabels: string[]
@@ -206,6 +246,16 @@ export interface ExamResultQuestion {
   questionId: number
   type: QuestionPayload['type']
   stem: string
+  sectionCode?: string | null
+  sectionTitle?: string | null
+  sectionSortOrder?: number | null
+  groupCode?: string | null
+  groupTitle?: string | null
+  groupDirection?: string | null
+  groupMaterial?: string | null
+  groupSortOrder?: number | null
+  itemLabel?: string | null
+  itemStem?: string | null
   analysis: string | null
   score: number
   obtainedScore: number

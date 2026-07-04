@@ -111,7 +111,12 @@ public class ExamService {
         paperWorkflow.clearPublishedSnapshotIfPresent(id);
         examMapper.deleteDraftAttachments(id);
         examMapper.deleteDraftOptions(id);
+        examMapper.deleteDraftAnswerLabels(id);
         examMapper.deleteDraftQuestions(id);
+        examMapper.deleteDraftNodeAttachments(id);
+        examMapper.deleteDraftNodeOptions(id);
+        examMapper.deleteDraftChildNodes(id);
+        examMapper.deleteDraftRootNodes(id);
         examMapper.deleteExamRules(id);
         examMapper.deleteExamDepartments(id);
         examMapper.deleteExam(id);

@@ -1,4 +1,5 @@
 import type { ExamQuestion } from '@/api/exam-business'
+import { isManualReviewType, isMultipleAnswerType } from '@/utils/question-types'
 
 export interface SubmitAnswerPayload {
   questionId: number
@@ -16,10 +17,10 @@ export function isQuestionAnswered(
   multipleAnswers: MultipleAnswerMap,
   textAnswers: TextAnswerMap = {},
 ) {
-  if (question.type === 'WRITING') {
+  if (isManualReviewType(question.type)) {
     return Boolean(textAnswers[question.questionId]?.trim())
   }
-  if (question.type === 'MULTIPLE_CHOICE') {
+  if (isMultipleAnswerType(question.type)) {
     return (multipleAnswers[question.questionId] || []).length > 0
   }
   return Boolean(singleAnswers[question.questionId])
@@ -41,13 +42,13 @@ export function buildSubmitAnswers(
   textAnswers: TextAnswerMap = {},
 ): SubmitAnswerPayload[] {
   return questions.map((question) => {
-    if (question.type === 'WRITING') {
+    if (isManualReviewType(question.type)) {
       return { questionId: question.questionId, answerText: textAnswers[question.questionId] || '' }
     }
     return {
       questionId: question.questionId,
       selectedLabels:
-        question.type === 'MULTIPLE_CHOICE'
+        isMultipleAnswerType(question.type)
           ? [...(multipleAnswers[question.questionId] || [])].sort()
           : singleAnswers[question.questionId]
             ? [singleAnswers[question.questionId]]

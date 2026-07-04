@@ -1,7 +1,7 @@
 <template>
   <article class="question-panel">
     <div class="question-title">
-      <strong>{{ index + 1 }}. {{ question.stem }}</strong>
+      <strong>{{ questionTitle }}</strong>
       <div class="question-title__meta">
         <el-tag effect="plain">{{ questionTypeText(question.type) }}</el-tag>
         <el-tag :type="question.correct === false ? 'danger' : 'success'">{{ question.obtainedScore }} / {{ question.score }} 分</el-tag>
@@ -10,7 +10,7 @@
 
     <QuestionMedia :attachments="question.attachments" />
 
-    <div class="review-options">
+    <div v-if="!compactSharedOptions" class="review-options">
       <div
         v-for="option in question.options"
         :key="option.id"
@@ -37,14 +37,23 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
+
 import type { ExamResultQuestion } from '@/api/exam-business'
 import { questionTypeText } from '@/utils/question-types'
 import QuestionMedia from './QuestionMedia.vue'
 
-defineProps<{
+const props = defineProps<{
   question: ExamResultQuestion
   index: number
+  compactSharedOptions?: boolean
 }>()
+
+const questionTitle = computed(() => {
+  const label = props.question.itemLabel || String(props.index + 1)
+  const stem = props.question.itemStem || props.question.stem
+  return stem ? `${label}. ${stem}` : label
+})
 
 function labelsText(labels: string[]) {
   return labels.length ? labels.join('、') : '未作答'

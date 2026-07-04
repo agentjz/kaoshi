@@ -2,8 +2,8 @@ import { expect, test, type Page } from '@playwright/test'
 
 import { collectConsoleIssues, login } from './helpers'
 
-const CET4_EXAM = '2015年12月英语四级真题第一卷'
-const CET4_AUDIO = '201512cet4-01.mp3'
+const CET4_EXAM = '2023年03月英语四级真题第一套'
+const CET4_AUDIO = '2023-03-cet4-listening.mp3'
 
 test.describe('在线考试', () => {
   function cet4ExamRow(page: Page) {
@@ -33,17 +33,17 @@ test.describe('在线考试', () => {
     await cet4ExamRow(page).getByRole('button', { name: '准备考试' }).click()
     await page.getByRole('button', { name: '开始考试' }).click()
     await expect(page.getByText('答题卡')).toBeVisible()
-    await expect(page.getByText('写作题').first()).toBeVisible()
-    await expect(page.getByText('Listening is more important than talking')).toBeVisible()
+    await expect(page.getByText('写作').first()).toBeVisible()
+    await expect(page.getByText('recommend it to other members of your book club').first()).toBeVisible()
 
-    const writingAnswer = 'Listening matters because it helps people understand others before responding. Careful listening builds trust and improves communication.'
+    const writingAnswer = 'This book is worth reading because it gives practical ideas in clear language and can start meaningful discussion in our book club.'
     const writingSaveResponse = page.waitForResponse((response) => {
       return response.url().includes('/api/exam/1/answers')
         && response.request().method() === 'POST'
-        && Boolean(response.request().postData()?.includes('Careful listening'))
+        && Boolean(response.request().postData()?.includes('practical ideas'))
     })
-    await page.getByPlaceholder('请输入写作答案').fill(writingAnswer)
-    await page.getByPlaceholder('请输入写作答案').blur()
+    await page.getByPlaceholder('写作答案').fill(writingAnswer)
+    await page.getByPlaceholder('写作答案').blur()
     await expect((await writingSaveResponse).ok()).toBe(true)
 
     page.once('dialog', (dialog) => {
@@ -51,11 +51,17 @@ test.describe('在线考试', () => {
     })
     await page.reload()
     await expect(page.getByText('答题卡')).toBeVisible()
-    await expect(page.getByPlaceholder('请输入写作答案')).toHaveValue(writingAnswer)
+    await expect(page.getByPlaceholder('写作答案')).toHaveValue(writingAnswer)
 
     await page.locator('.answer-card__item').filter({ hasText: /^2$/ }).click()
-    await expect(page.locator(`audio.question-media__audio[src$="${CET4_AUDIO}"]`).first()).toBeVisible()
-    await page.getByText('C. They enjoyed the movie on space exploration.').click()
+    await expect(page.locator(`audio[src$="${CET4_AUDIO}"]`).first()).toBeVisible()
+    await page.getByText('A. A proposed policy allowing Africans to travel in Africa without a visa.').click()
+    await expect(page.getByText('答案已保存')).toBeVisible()
+    await expect(page.locator('.question-group-context__options').filter({ hasText: 'wildlife' })).toHaveCount(1)
+    await page.locator('.answer-card__item').filter({ hasText: /^26$/ }).click()
+    const wordBankQuestion = page.locator('.question-panel').filter({ hasText: /^26\./ })
+    await wordBankQuestion.locator('.answer-select .el-select__wrapper').click()
+    await page.getByRole('option', { name: 'O. alike' }).click()
     await expect(page.getByText('答案已保存')).toBeVisible()
 
     await page.locator('.exam-actions').getByRole('button', { name: '提交试卷' }).click()
@@ -65,7 +71,7 @@ test.describe('在线考试', () => {
     await expect(page.getByRole('heading', { name: CET4_EXAM })).toBeVisible()
     await expect(page.getByText('阅卷状态').locator('..')).toContainText('待阅卷')
     await expect(page.getByText(writingAnswer)).toBeVisible()
-    await expect(page.getByText('正确答案：C').first()).toBeVisible()
+    await expect(page.getByText('正确答案：A').first()).toBeVisible()
 
     await page.getByRole('menuitem', { name: '我的成绩' }).click()
     await expect(page.getByRole('heading', { name: '我的成绩' })).toBeVisible()
@@ -104,7 +110,7 @@ test.describe('在线考试', () => {
     const detailResponse = await page.request.get(`/api/admin/results/${resultId}`, { headers })
     expect(detailResponse.ok()).toBeTruthy()
     const resultDetail = (await detailResponse.json()).data
-    for (const question of resultDetail.questions.filter((item: { type: string; reviewedAt: string | null }) => item.type === 'WRITING' && !item.reviewedAt)) {
+    for (const question of resultDetail.questions.filter((item: { type: string; reviewedAt: string | null }) => ['WRITING', 'TRANSLATION'].includes(item.type) && !item.reviewedAt)) {
       const response = await page.request.post(`/api/admin/results/${resultId}/questions/${question.questionId}/review`, {
         headers,
         data: {

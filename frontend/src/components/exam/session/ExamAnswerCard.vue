@@ -4,7 +4,7 @@
       <strong>答题卡</strong>
       <span>{{ unansweredCount }} 未答</span>
     </div>
-    <div v-for="group in groups" :key="group.type" class="answer-card__section">
+    <div v-for="group in groups" :key="group.id" class="answer-card__section">
       <p>{{ group.title }}</p>
       <div class="answer-card__grid">
         <button
@@ -18,7 +18,7 @@
           type="button"
           @click="$emit('select-question', question.questionId)"
         >
-          {{ questionIndex(question.questionId) + 1 }}
+          {{ question.itemLabel || questionIndex(question.questionId) + 1 }}
         </button>
       </div>
     </div>
@@ -29,7 +29,7 @@
 import type { ExamQuestion } from '@/api/exam-business'
 
 export interface AnswerCardGroup {
-  type: ExamQuestion['type']
+  id: string
   title: string
   questions: ExamQuestion[]
 }

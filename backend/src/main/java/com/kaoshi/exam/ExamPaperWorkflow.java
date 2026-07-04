@@ -57,7 +57,12 @@ final class ExamPaperWorkflow {
         }
         examMapper.deletePublishedAttachments(examId);
         examMapper.deletePublishedOptions(examId);
+        examMapper.deletePublishedAnswerLabels(examId);
         examMapper.deletePublishedQuestions(examId);
+        examMapper.deletePublishedNodeAttachments(examId);
+        examMapper.deletePublishedNodeOptions(examId);
+        examMapper.deletePublishedChildNodes(examId);
+        examMapper.deletePublishedRootNodes(examId);
     }
 
     void validateDraft(ExamSaveRequest request) {
@@ -156,7 +161,12 @@ final class ExamPaperWorkflow {
     void replaceDraftQuestions(Long examId, ExamSaveRequest request) {
         examMapper.deleteDraftAttachments(examId);
         examMapper.deleteDraftOptions(examId);
+        examMapper.deleteDraftAnswerLabels(examId);
         examMapper.deleteDraftQuestions(examId);
+        examMapper.deleteDraftNodeAttachments(examId);
+        examMapper.deleteDraftNodeOptions(examId);
+        examMapper.deleteDraftChildNodes(examId);
+        examMapper.deleteDraftRootNodes(examId);
         List<ExamPaperQuestionRequest> paperQuestions = request.paperQuestions();
         if (paperQuestions != null && !paperQuestions.isEmpty()) {
             replaceDraftQuestionsFromRequest(examId, paperQuestions);
@@ -197,19 +207,29 @@ final class ExamPaperWorkflow {
     void rebuildPublishedSnapshot(Long examId) {
         examMapper.deletePublishedAttachments(examId);
         examMapper.deletePublishedOptions(examId);
+        examMapper.deletePublishedAnswerLabels(examId);
         examMapper.deletePublishedQuestions(examId);
+        examMapper.deletePublishedNodeAttachments(examId);
+        examMapper.deletePublishedNodeOptions(examId);
+        examMapper.deletePublishedChildNodes(examId);
+        examMapper.deletePublishedRootNodes(examId);
         for (Map<String, Object> source : examMapper.findDraftQuestionsForPublish(examId)) {
             Map<String, Object> question = new HashMap<>();
             question.put("examId", examId);
+            question.put("publishedNodeId", copyPublishedNodeFromDraft(examId, nullableLong(value(source, "draftNodeId"))));
             question.put("sourceQuestionId", longValue(value(source, "questionId")));
+            question.put("bankId", longValue(value(source, "bankId")));
+            question.put("bankName", stringValue(value(source, "bankName")));
             question.put("type", stringValue(value(source, "type")));
             question.put("stem", stringValue(value(source, "stem")));
+            putItemMetadata(question, source);
             question.put("analysis", stringValue(value(source, "analysis")));
             question.put("score", decimalValue(value(source, "score")));
             question.put("sortOrder", intValue(value(source, "sortOrder")));
             examMapper.insertPublishedQuestion(question);
             Long publishedQuestionId = longValue(value(question, "id"));
             examMapper.copyPublishedOptions(publishedQuestionId, longValue(value(source, "draftQuestionId")));
+            examMapper.copyPublishedAnswerLabels(publishedQuestionId, longValue(value(source, "draftQuestionId")));
             examMapper.copyPublishedAttachments(publishedQuestionId, longValue(value(source, "draftQuestionId")));
         }
     }
@@ -333,16 +353,79 @@ final class ExamPaperWorkflow {
         Map<String, Object> question = new HashMap<>();
         question.put("examId", examId);
         question.put("sourceQuestionId", sourceQuestionId);
+        question.put("draftNodeId", copyDraftNodeFromSource(examId, nullableLong(value(source, "sourceNodeId"))));
         question.put("bankId", longValue(value(source, "bankId")));
         question.put("bankName", stringValue(value(source, "bankName")));
         question.put("type", stringValue(value(source, "type")));
         question.put("stem", stringValue(value(source, "stem")));
+        putItemMetadata(question, source);
         question.put("analysis", stringValue(value(source, "analysis")));
         question.put("score", score);
         question.put("sortOrder", sortOrder);
         examMapper.insertDraftQuestion(question);
         Long draftQuestionId = longValue(value(question, "id"));
         examMapper.copyDraftOptionsFromSource(draftQuestionId, sourceQuestionId);
+        examMapper.copyDraftAnswerLabelsFromSource(draftQuestionId, sourceQuestionId);
         examMapper.copyDraftAttachmentsFromSource(draftQuestionId, sourceQuestionId);
+    }
+
+    private Long copyDraftNodeFromSource(Long examId, Long sourceNodeId) {
+        if (sourceNodeId == null) {
+            return null;
+        }
+        Map<String, Object> existing = examMapper.findDraftNodeBySource(examId, sourceNodeId);
+        if (existing != null) {
+            return longValue(value(existing, "id"));
+        }
+        Map<String, Object> source = examMapper.findSourceNode(sourceNodeId);
+        Long parentId = copyDraftNodeFromSource(examId, nullableLong(value(source, "parentId")));
+        Map<String, Object> node = new HashMap<>();
+        putNodeSnapshot(node, examId, sourceNodeId, parentId, source);
+        examMapper.insertDraftNode(node);
+        Long draftNodeId = longValue(value(node, "id"));
+        examMapper.copyDraftNodeOptionsFromSource(draftNodeId, sourceNodeId);
+        examMapper.copyDraftNodeAttachmentsFromSource(draftNodeId, sourceNodeId);
+        return draftNodeId;
+    }
+
+    private Long copyPublishedNodeFromDraft(Long examId, Long draftNodeId) {
+        if (draftNodeId == null) {
+            return null;
+        }
+        Map<String, Object> draft = examMapper.findDraftNode(draftNodeId);
+        Long sourceNodeId = longValue(value(draft, "sourceNodeId"));
+        Map<String, Object> existing = examMapper.findPublishedNodeBySource(examId, sourceNodeId);
+        if (existing != null) {
+            return longValue(value(existing, "id"));
+        }
+        Long parentId = copyPublishedNodeFromDraft(examId, nullableLong(value(draft, "parentId")));
+        Map<String, Object> node = new HashMap<>();
+        putNodeSnapshot(node, examId, sourceNodeId, parentId, draft);
+        examMapper.insertPublishedNode(node);
+        Long publishedNodeId = longValue(value(node, "id"));
+        examMapper.copyPublishedNodeOptions(publishedNodeId, draftNodeId);
+        examMapper.copyPublishedNodeAttachments(publishedNodeId, draftNodeId);
+        return publishedNodeId;
+    }
+
+    private void putNodeSnapshot(Map<String, Object> target, Long ownerId, Long sourceNodeId, Long parentId, Map<String, Object> source) {
+        target.put("examId", ownerId);
+        target.put("sourceNodeId", sourceNodeId);
+        target.put("parentId", parentId);
+        target.put("nodeCode", stringValue(value(source, "nodeCode")));
+        target.put("nodeType", stringValue(value(source, "nodeType")));
+        target.put("title", stringValue(value(source, "title")));
+        target.put("direction", stringValue(value(source, "direction")));
+        target.put("material", stringValue(value(source, "material")));
+        target.put("sortOrder", intValue(value(source, "sortOrder")));
+    }
+
+    private void putItemMetadata(Map<String, Object> target, Map<String, Object> source) {
+        target.put("itemLabel", stringValue(value(source, "itemLabel")));
+        target.put("itemStem", stringValue(value(source, "itemStem")));
+    }
+
+    private Long nullableLong(Object value) {
+        return value == null ? null : longValue(value);
     }
 }

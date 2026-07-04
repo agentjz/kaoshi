@@ -21,6 +21,8 @@
       <el-button v-if="selectedBankId" @click="$emit('clear-selection')">查看全部题库</el-button>
     </div>
 
+    <QuestionContentTree v-if="selectedBank" :sections="contentTree" />
+
     <el-table v-loading="loading" :data="questions" class="data-table" border>
       <el-table-column prop="stem" label="题干" min-width="260" show-overflow-tooltip />
       <el-table-column prop="bankName" label="题库" width="160" />
@@ -67,7 +69,9 @@
 import { Search } from '@element-plus/icons-vue'
 
 import type { NamedCategory, Question, QuestionBank } from '@/api/exam-business'
+import QuestionContentTree from '@/components/admin/question-banks/QuestionContentTree.vue'
 import { questionTypeMeta, questionTypeText } from '@/utils/question-types'
+import type { QuestionContentTreeSection } from '@/utils/question-bank-editor'
 
 defineProps<{
   selectedBank: QuestionBank | null
@@ -78,6 +82,7 @@ defineProps<{
   loading: boolean
   total: number
   query: { page: number; size: number; keyword: string }
+  contentTree: QuestionContentTreeSection[]
 }>()
 
 defineEmits<{

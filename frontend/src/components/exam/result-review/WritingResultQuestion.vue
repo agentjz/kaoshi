@@ -1,7 +1,7 @@
 <template>
   <article class="question-panel">
     <div class="question-title">
-      <strong>{{ index + 1 }}. {{ question.stem }}</strong>
+      <strong>{{ questionTitle }}</strong>
       <div class="question-title__meta">
         <el-tag effect="plain">{{ questionTypeText(question.type) }}</el-tag>
         <el-tag :type="scoreTagType">{{ question.obtainedScore }} / {{ question.score }} 分</el-tag>
@@ -11,7 +11,7 @@
     <QuestionMedia :attachments="question.attachments" />
 
     <div class="writing-answer">
-      <span>写作答案</span>
+      <span>{{ questionTypeText(question.type) }}答案</span>
       <p>{{ question.answerText || '未作答' }}</p>
     </div>
 
@@ -64,6 +64,12 @@ const scoreTagType = computed(() => {
     return 'warning'
   }
   return props.question.correct === false ? 'danger' : 'success'
+})
+
+const questionTitle = computed(() => {
+  const label = props.question.itemLabel || String(props.index + 1)
+  const stem = props.question.itemStem || props.question.stem
+  return stem ? `${label}. ${stem}` : label
 })
 </script>
 

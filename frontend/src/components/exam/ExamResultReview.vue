@@ -7,18 +7,33 @@
   </section>
 
   <section class="result-review">
-    <template v-for="(question, index) in result.questions" :key="question.questionId">
-      <WritingResultQuestion
-        v-if="question.type === 'WRITING'"
-        :question="question"
-        :index="index"
-        :form="reviewForms[question.questionId]"
-        :reviewable="canReviewWriting"
-        :saving="savingQuestionId === question.questionId"
-        @save="saveReview"
+    <section v-for="group in resultQuestionGroups" :key="group.id" class="result-review__group">
+      <QuestionGroupContext
+        :section-title="group.sectionTitle"
+        :title="group.title"
+        :direction="group.direction"
+        :material="group.material"
+        :attachments="group.attachments"
+        :shared-options="group.sharedOptions"
       />
-      <ChoiceResultQuestion v-else :question="question" :index="index" />
-    </template>
+      <template v-for="question in group.questions" :key="question.questionId">
+        <WritingResultQuestion
+          v-if="isManualReviewType(question.type)"
+          :question="question"
+          :index="questionIndex(question.questionId)"
+          :form="reviewForms[question.questionId]"
+          :reviewable="canReviewWriting"
+          :saving="savingQuestionId === question.questionId"
+          @save="saveReview"
+        />
+        <ChoiceResultQuestion
+          v-else
+          :question="question"
+          :index="questionIndex(question.questionId)"
+          :compact-shared-options="group.compactOptionItems"
+        />
+      </template>
+    </section>
   </section>
 </template>
 
@@ -32,6 +47,9 @@ import {
   type ExamResultDetail,
   type ExamResultQuestion,
 } from '@/api/exam-business'
+import QuestionGroupContext from '@/components/exam/QuestionGroupContext.vue'
+import { groupQuestionsForDisplay } from '@/utils/exam-question-groups'
+import { isManualReviewType } from '@/utils/question-types'
 import ChoiceResultQuestion from './result-review/ChoiceResultQuestion.vue'
 import ResultMetricGrid from './result-review/ResultMetricGrid.vue'
 import WritingResultQuestion from './result-review/WritingResultQuestion.vue'
@@ -50,15 +68,16 @@ const emit = defineEmits<{
 const completing = ref(false)
 const savingQuestionId = ref<number | null>(null)
 const reviewForms = reactive<Record<number, { score: number; comment: string }>>({})
-const writingQuestions = computed(() => props.result.questions.filter((question) => question.type === 'WRITING'))
+const writingQuestions = computed(() => props.result.questions.filter((question) => isManualReviewType(question.type)))
 const canReviewWriting = computed(() => props.reviewable && props.result.gradingStatus === 'PENDING_REVIEW')
 const allWritingReviewed = computed(() => writingQuestions.value.length > 0 && writingQuestions.value.every((question) => Boolean(question.reviewedAt)))
+const resultQuestionGroups = computed(() => groupQuestionsForDisplay(props.result.questions))
 
 watch(
   () => props.result,
   (result) => {
     for (const question of result.questions) {
-      if (question.type !== 'WRITING') {
+      if (!isManualReviewType(question.type)) {
         continue
       }
       reviewForms[question.questionId] = {
@@ -86,6 +105,10 @@ async function saveReview(question: ExamResultQuestion) {
   } finally {
     savingQuestionId.value = null
   }
+}
+
+function questionIndex(questionId: number) {
+  return props.result.questions.findIndex((question) => question.questionId === questionId)
 }
 
 async function completeReview() {
@@ -124,6 +147,11 @@ async function completeReview() {
   display: grid;
   gap: 16px;
   min-width: 0;
+}
+
+.result-review__group {
+  display: grid;
+  gap: 14px;
 }
 
 @media (max-width: 900px) {

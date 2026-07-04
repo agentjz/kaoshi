@@ -48,6 +48,7 @@
         :loading="loading"
         :total="total"
         :query="query"
+        :content-tree="questionContentTree"
         @search="loadQuestions"
         @clear-selection="clearSelectedBank"
         @edit-bank="openEditBankDialog"
@@ -137,6 +138,7 @@ import type { ExcelImportResult } from '@/api/admin'
 import { downloadBlob } from '@/utils/download'
 import {
   buildBankTree,
+  buildQuestionContentTree,
   createQuestionPayload,
   inferMediaType,
   nextOptionLabel,
@@ -153,6 +155,7 @@ const banks = ref<QuestionBank[]>([])
 const selectedCategoryId = ref<number | null>(null)
 const selectedBankId = ref<number | null>(null)
 const questions = ref<Question[]>([])
+const contentTreeQuestions = ref<Question[]>([])
 const total = ref(0)
 const loading = ref(false)
 const bankLoading = ref(false)
@@ -212,6 +215,7 @@ const selectedBank = computed(() => banks.value.find((bank) => bank.id === selec
 const selectedCategory = computed(() => categories.value.find((category) => category.id === selectedCategoryId.value) || null)
 const bankQuestionTotal = computed(() => banks.value.reduce((sum, bank) => sum + bank.questionCount, 0))
 const bankTree = computed<BankTreeNode[]>(() => buildBankTree(categories.value, banks.value))
+const questionContentTree = computed(() => buildQuestionContentTree(contentTreeQuestions.value))
 
 onMounted(async () => {
   await Promise.all([loadCategories(), loadBanks()])
@@ -258,9 +262,23 @@ async function loadQuestions() {
     })
     questions.value = result.records
     total.value = result.total
+    await loadContentTreeQuestions()
   } finally {
     loading.value = false
   }
+}
+
+async function loadContentTreeQuestions() {
+  if (!selectedBankId.value) {
+    contentTreeQuestions.value = []
+    return
+  }
+  const result = await fetchQuestions({
+    page: 1,
+    size: 500,
+    bankId: selectedBankId.value,
+  })
+  contentTreeQuestions.value = result.records
 }
 
 async function selectBankNode(node: BankTreeNode) {

@@ -38,7 +38,7 @@ final class ExamGradingWorkflow {
         BigDecimal obtainedScore = BigDecimal.ZERO;
         BigDecimal objectiveScore = BigDecimal.ZERO;
         int correctCount = 0;
-        boolean hasWriting = false;
+        boolean hasManualReview = false;
         Long attemptId = longValue(value(attempt, "id"));
         List<Map<String, Object>> questions = examMapper.findAttemptQuestions(attemptId);
         for (Map<String, Object> question : questions) {
@@ -46,7 +46,7 @@ final class ExamGradingWorkflow {
             BigDecimal questionScore = decimalValue(value(question, "score"));
             totalScore = totalScore.add(questionScore);
             if (QuestionType.require(stringValue(value(question, "type"))).manualReview()) {
-                hasWriting = true;
+                hasManualReview = true;
                 String answerText = examMapper.findAnswerText(attemptQuestionId);
                 examMapper.upsertWritingAnswer(attemptId, attemptQuestionId, answerText == null ? "" : answerText);
                 continue;
@@ -80,7 +80,7 @@ final class ExamGradingWorkflow {
         result.put("subjectiveScore", BigDecimal.ZERO);
         result.put("correctCount", correctCount);
         result.put("questionCount", questions.size());
-        result.put("gradingStatus", hasWriting ? GRADING_PENDING_REVIEW : GRADING_FINAL);
+        result.put("gradingStatus", hasManualReview ? GRADING_PENDING_REVIEW : GRADING_FINAL);
         result.put("submittedAt", submittedAt);
         examMapper.insertResult(result);
         return new ExamResultResponse(
@@ -98,8 +98,8 @@ final class ExamGradingWorkflow {
                 BigDecimal.ZERO,
                 correctCount,
                 questions.size(),
-                hasWriting ? GRADING_PENDING_REVIEW : GRADING_FINAL,
-                !hasWriting && obtainedScore.compareTo(exam.getQualifyScore()) >= 0,
+                hasManualReview ? GRADING_PENDING_REVIEW : GRADING_FINAL,
+                !hasManualReview && obtainedScore.compareTo(exam.getQualifyScore()) >= 0,
                 submittedAt
         );
     }
@@ -113,11 +113,11 @@ final class ExamGradingWorkflow {
             throw new BusinessException(ErrorCode.NOT_FOUND, "成绩题目不存在");
         }
         if (!QuestionType.require(stringValue(value(question, "type"))).manualReview()) {
-            throw new BusinessException(ErrorCode.VALIDATION_FAILED, "只有写作题需要人工阅卷");
+            throw new BusinessException(ErrorCode.VALIDATION_FAILED, "只有主观题需要人工阅卷");
         }
         BigDecimal maxScore = decimalValue(value(question, "score"));
         if (request.score().compareTo(maxScore) > 0) {
-            throw new BusinessException(ErrorCode.VALIDATION_FAILED, "写作题得分不能超过题目分值");
+            throw new BusinessException(ErrorCode.VALIDATION_FAILED, "主观题得分不能超过题目分值");
         }
         LocalDateTime reviewedAt = LocalDateTime.now();
         int updated = examMapper.updateWritingReview(
@@ -128,7 +128,7 @@ final class ExamGradingWorkflow {
                 reviewedAt
         );
         if (updated != 1) {
-            throw new BusinessException(ErrorCode.CONFLICT, "写作题阅卷保存失败");
+            throw new BusinessException(ErrorCode.CONFLICT, "主观题阅卷保存失败");
         }
         recalculateResult(resultId, GRADING_PENDING_REVIEW, null);
     }
@@ -138,10 +138,10 @@ final class ExamGradingWorkflow {
             throw new BusinessException(ErrorCode.CONFLICT, "成绩已完成阅卷，不能重复完成阅卷");
         }
         if (examMapper.countWritingQuestionsByResult(resultId) == 0) {
-            throw new BusinessException(ErrorCode.VALIDATION_FAILED, "该成绩没有需要人工阅卷的写作题");
+            throw new BusinessException(ErrorCode.VALIDATION_FAILED, "该成绩没有需要人工阅卷的主观题");
         }
         if (examMapper.countPendingWritingReviews(resultId) > 0) {
-            throw new BusinessException(ErrorCode.VALIDATION_FAILED, "仍有写作题未完成评分");
+            throw new BusinessException(ErrorCode.VALIDATION_FAILED, "仍有主观题未完成评分");
         }
         recalculateResult(resultId, GRADING_FINAL, LocalDateTime.now());
     }

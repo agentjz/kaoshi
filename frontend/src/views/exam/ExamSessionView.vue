@@ -45,19 +45,31 @@
           </template>
 
           <template v-else-if="session.displayMode === 'ALL'">
-            <ExamQuestionPanel
-              v-for="(question, index) in session.questions"
-              :key="question.questionId"
-              :panel-id="`question-${question.questionId}`"
-              :question="question"
-              :index="index"
-              :single-answers="singleAnswers"
-              :multiple-answers="multipleAnswers"
-              :text-answers="textAnswers"
-              :disabled="submitting || submitted"
-              @schedule-save="scheduleSave"
-              @save-immediately="saveImmediately"
-            />
+            <section v-for="group in displayQuestionGroups" :key="group.id" class="question-display-group">
+              <QuestionGroupContext
+                :section-title="group.sectionTitle"
+                :title="group.title"
+                :direction="group.direction"
+                :material="group.material"
+                :attachments="group.attachments"
+                :shared-options="group.sharedOptions"
+              />
+              <ExamQuestionPanel
+                v-for="question in group.questions"
+                :key="question.questionId"
+                :panel-id="`question-${question.questionId}`"
+                :question="question"
+                :index="questionGlobalIndex(question.questionId)"
+                :single-answers="singleAnswers"
+                :multiple-answers="multipleAnswers"
+                :text-answers="textAnswers"
+                :disabled="submitting || submitted"
+                :show-attachments="false"
+                :compact-shared-options="group.compactOptionItems"
+                @schedule-save="scheduleSave"
+                @save-immediately="saveImmediately"
+              />
+            </section>
             <div class="question-submit-row">
               <el-button type="primary" :loading="submitting" :disabled="submitted" @click="confirmSubmit">提交试卷</el-button>
             </div>
@@ -84,8 +96,10 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 
 import ExamAnswerCard from '@/components/exam/session/ExamAnswerCard.vue'
 import ExamQuestionPanel from '@/components/exam/session/ExamQuestionPanel.vue'
+import QuestionGroupContext from '@/components/exam/QuestionGroupContext.vue'
 import { useAnswerSnapshotSaver } from '@/composables/use-answer-snapshot-saver'
 import { saveExamAnswers, startExam, submitExam, type ExamQuestion, type ExamSession } from '@/api/exam-business'
+import { groupQuestionsForDisplay } from '@/utils/exam-question-groups'
 import {
   buildSubmitAnswers,
   countAnsweredQuestions,
@@ -95,6 +109,7 @@ import {
   type SingleAnswerMap,
   type TextAnswerMap,
 } from '@/utils/exam-session'
+import { isManualReviewType, isMultipleAnswerType, questionTypeText } from '@/utils/question-types'
 
 const route = useRoute()
 const router = useRouter()
@@ -128,30 +143,21 @@ const answeredCount = computed(() => countAnsweredQuestions(session.value?.quest
 const unansweredCount = computed(() => Math.max(0, (session.value?.questions.length ?? 0) - answeredCount.value))
 const hasActiveAttempt = computed(() => Boolean(session.value && !submitted.value))
 const saveStatusText = answerSaver.saveStatusText
+const displayQuestionGroups = computed(() => groupQuestionsForDisplay(session.value?.questions ?? []))
 const groupedQuestions = computed<AnswerCardGroup[]>(() => {
-  const questions = session.value?.questions ?? []
-  const groups: AnswerCardGroup[] = [
-    {
-      type: 'SINGLE_CHOICE',
-      title: '单选题',
-      questions: questions.filter((question) => question.type === 'SINGLE_CHOICE'),
-    },
-    {
-      type: 'MULTIPLE_CHOICE',
-      title: '多选题',
-      questions: questions.filter((question) => question.type === 'MULTIPLE_CHOICE'),
-    },
-    {
-      type: 'WRITING',
-      title: '写作题',
-      questions: questions.filter((question) => question.type === 'WRITING'),
-    },
-  ]
-  return groups.filter((group) => group.questions.length > 0)
+  const groups = displayQuestionGroups.value.map((group) => ({
+    id: group.id,
+    title: group.title || group.sectionTitle || '试题',
+    questions: group.questions,
+  }))
+  if (groups.length > 0) {
+    return groups
+  }
+  return groupQuestionsByType(session.value?.questions ?? [])
 })
 
 interface AnswerCardGroup {
-  type: ExamQuestion['type']
+  id: string
   title: string
   questions: ExamQuestion[]
 }
@@ -217,11 +223,11 @@ async function beginExam() {
 
 function initializeAnswers(currentSession: ExamSession) {
   for (const question of currentSession.questions) {
-    if (question.type === 'MULTIPLE_CHOICE') {
+    if (isMultipleAnswerType(question.type)) {
       multipleAnswers[question.questionId] = [...question.selectedLabels]
-    } else if (question.type === 'SINGLE_CHOICE') {
+    } else if (!isManualReviewType(question.type)) {
       singleAnswers[question.questionId] = question.selectedLabels[0] || ''
-    } else if (question.type === 'WRITING') {
+    } else {
       textAnswers[question.questionId] = question.answerText || ''
     }
   }
@@ -257,6 +263,17 @@ function isAnswered(question: ExamQuestion) {
 
 function questionGlobalIndex(questionId: number) {
   return session.value?.questions.findIndex((question) => question.questionId === questionId) ?? -1
+}
+
+function groupQuestionsByType(questions: ExamQuestion[]) {
+  const typeOrder: ExamQuestion['type'][] = ['SINGLE_CHOICE', 'MULTIPLE_CHOICE', 'WORD_BANK', 'MATCHING', 'WRITING', 'TRANSLATION']
+  return typeOrder
+    .map((type) => ({
+      id: type,
+      title: questionTypeText(type),
+      questions: questions.filter((question) => question.type === type),
+    }))
+    .filter((group) => group.questions.length > 0)
 }
 
 async function selectQuestion(questionId: number) {
@@ -394,6 +411,11 @@ function preventUnload(event: BeforeUnloadEvent) {
   justify-content: flex-end;
   gap: 10px;
   margin-top: 18px;
+}
+
+.question-display-group {
+  display: grid;
+  gap: 14px;
 }
 
 .question-submit-row {

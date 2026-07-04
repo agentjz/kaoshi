@@ -151,10 +151,15 @@ class ExamBusinessFlowTests {
         mockMvc.perform(post("/api/exam/{examId}/start", 1)
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.title").value("2015年12月英语四级真题第一卷"))
-                .andExpect(jsonPath("$.data.questions.length()").value(67))
+                .andExpect(jsonPath("$.data.title").value("2023年03月英语四级真题第一套"))
+                .andExpect(jsonPath("$.data.questions.length()").value(57))
+                .andExpect(jsonPath("$.data.questions[0].type").value("WRITING"))
+                .andExpect(jsonPath("$.data.questions[1].groupCode").value("listening-news-1"))
+                .andExpect(jsonPath("$.data.questions[26].type").value("WORD_BANK"))
+                .andExpect(jsonPath("$.data.questions[36].type").value("MATCHING"))
+                .andExpect(jsonPath("$.data.questions[56].type").value("TRANSLATION"))
                 .andExpect(jsonPath("$.data.questions[*].attachments[*].fileUrl").value(hasItems(
-                        "/local-assets/cet4/2015-12/set-1/201512cet4-01.mp3"
+                        "/local-assets/cet4/2023-03/set-1/2023-03-cet4-listening.mp3"
                 )))
                 .andExpect(jsonPath("$.data.questions[*].attachments[*].mediaType").value(hasItems("AUDIO")));
     }
@@ -396,7 +401,7 @@ class ExamBusinessFlowTests {
         mockMvc.perform(post("/api/admin/results/{resultId}/complete-review", resultId)
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.message").value(containsString("仍有写作题未完成评分")));
+                .andExpect(jsonPath("$.message").value(containsString("仍有主观题未完成评分")));
 
         mockMvc.perform(post("/api/admin/results/{resultId}/questions/{questionId}/review", resultId, writingQuestionId)
                         .header("Authorization", "Bearer " + token)
@@ -951,7 +956,7 @@ class ExamBusinessFlowTests {
                 "file",
                 "questions.xlsx",
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                questionWorkbook("2015年12月英语四级真题第一卷", "AC")
+                questionWorkbook("2023年03月英语四级第一套 - 听力", "AC")
         );
         mockMvc.perform(multipart("/api/admin/questions/import")
                         .file(file)
@@ -966,7 +971,7 @@ class ExamBusinessFlowTests {
                 .andExpect(jsonPath("$.data.records[0].stem").value("Excel import listening question"))
                 .andExpect(jsonPath("$.data.records[0].attachments.length()").value(0));
 
-        mockMvc.perform(get("/api/admin/question-banks?page=1&size=20&keyword=2015年12月英语四级真题第一卷")
+        mockMvc.perform(get("/api/admin/question-banks?page=1&size=20&keyword=2023年03月英语四级第一套 - 听力")
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.records[0].questionCount").value(greaterThanOrEqualTo(1)))
@@ -982,7 +987,7 @@ class ExamBusinessFlowTests {
                 "file",
                 "questions-invalid.xlsx",
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                questionWorkbook("2015年12月英语四级真题第一卷", "A,C")
+                questionWorkbook("2023年03月英语四级第一套 - 听力", "A,C")
         );
         mockMvc.perform(multipart("/api/admin/questions/import")
                         .file(invalidFile)

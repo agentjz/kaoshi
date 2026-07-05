@@ -6,6 +6,7 @@ import com.kaoshi.auth.dto.LoginRequest;
 import com.kaoshi.auth.dto.LoginResponse;
 import com.kaoshi.common.api.ApiResponse;
 import com.kaoshi.security.AuthUser;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -24,8 +25,8 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-    public ApiResponse<LoginResponse> login(@Valid @RequestBody LoginRequest request) {
-        return ApiResponse.ok(authService.login(request));
+    public ApiResponse<LoginResponse> login(@Valid @RequestBody LoginRequest request, HttpServletRequest servletRequest) {
+        return ApiResponse.ok(authService.login(request, servletRequest));
     }
 
     @GetMapping("/me")

@@ -1,4 +1,5 @@
 import { adminAdapter } from './adapters/current'
+import type { MailStatus, RegistrationSettings } from './types'
 
 export interface PageResult<T> {
   records: T[]
@@ -90,6 +91,54 @@ export interface DepartmentPayload {
   status: Department['status']
 }
 
+export interface RegistrationRequest {
+  userId: number
+  username: string
+  displayName: string
+  email: string
+  status: 'ACTIVE' | 'DISABLED'
+  approvalStatus: 'APPROVED' | 'PENDING' | 'REJECTED'
+  registeredAt: string
+}
+
+export interface PlatformNotification {
+  id: number
+  recipientUserId: number | null
+  title: string
+  content: string
+  category: string
+  read: boolean
+  createdAt: string
+}
+
+export interface ExternalIntegration {
+  id: number
+  name: string
+  integrationType: string
+  endpointUrl: string
+  secretMask: string | null
+  enabled: boolean
+  updatedAt: string
+}
+
+export interface ExternalIntegrationPayload {
+  name: string
+  integrationType: string
+  endpointUrl: string
+  secretMask: string
+  enabled: boolean
+}
+
+export interface ExternalIntegrationEvent {
+  id: number
+  integrationId: number
+  eventType: string
+  status: string
+  payloadSummary: string | null
+  errorMessage: string | null
+  createdAt: string
+}
+
 export function fetchAdminUsers(params: { page: number; size: number; keyword?: string }): Promise<PageResult<AdminUser>> {
   return adminAdapter.fetchAdminUsers(params)
 }
@@ -152,4 +201,60 @@ export function updateDepartment(id: number, payload: DepartmentPayload): Promis
 
 export function deleteDepartment(id: number): Promise<void> {
   return adminAdapter.deleteDepartment(id)
+}
+
+export function fetchAdminRegistrationSettings(): Promise<RegistrationSettings> {
+  return adminAdapter.fetchRegistrationSettings()
+}
+
+export function updateAdminRegistrationSettings(payload: RegistrationSettings): Promise<RegistrationSettings> {
+  return adminAdapter.updateRegistrationSettings(payload)
+}
+
+export function fetchAdminMailStatus(): Promise<MailStatus> {
+  return adminAdapter.fetchMailStatus()
+}
+
+export function sendAdminTestMail(email: string): Promise<void> {
+  return adminAdapter.sendTestMail(email)
+}
+
+export function fetchRegistrationRequests(): Promise<RegistrationRequest[]> {
+  return adminAdapter.fetchRegistrationRequests()
+}
+
+export function approveRegistrationRequest(userId: number): Promise<RegistrationRequest> {
+  return adminAdapter.approveRegistrationRequest(userId)
+}
+
+export function rejectRegistrationRequest(userId: number, reason: string): Promise<RegistrationRequest> {
+  return adminAdapter.rejectRegistrationRequest(userId, reason)
+}
+
+export function fetchPlatformNotifications(): Promise<PlatformNotification[]> {
+  return adminAdapter.fetchPlatformNotifications()
+}
+
+export function markPlatformNotificationRead(id: number): Promise<void> {
+  return adminAdapter.markPlatformNotificationRead(id)
+}
+
+export function fetchExternalIntegrations(): Promise<ExternalIntegration[]> {
+  return adminAdapter.fetchExternalIntegrations()
+}
+
+export function createExternalIntegration(payload: ExternalIntegrationPayload): Promise<ExternalIntegration> {
+  return adminAdapter.createExternalIntegration(payload)
+}
+
+export function updateExternalIntegration(id: number, payload: ExternalIntegrationPayload): Promise<ExternalIntegration> {
+  return adminAdapter.updateExternalIntegration(id, payload)
+}
+
+export function testExternalIntegration(id: number): Promise<ExternalIntegrationEvent[]> {
+  return adminAdapter.testExternalIntegration(id)
+}
+
+export function fetchExternalIntegrationEvents(): Promise<ExternalIntegrationEvent[]> {
+  return adminAdapter.fetchExternalIntegrationEvents()
 }

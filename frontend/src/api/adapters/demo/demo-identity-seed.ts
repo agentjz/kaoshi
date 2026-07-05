@@ -17,6 +17,7 @@ function buildPermissions(): AdminPermission[] {
     ['admin:users', '用户管理'],
     ['admin:roles', '角色管理'],
     ['admin:departments', '部门管理'],
+    ['system:settings', '平台设置'],
     ['exam:questions', '题库管理'],
     ['exam:manage', '考试管理'],
     ['exam:review', '成绩阅卷'],
@@ -30,6 +31,7 @@ function buildMenus(): AdminMenu[] {
     { id: 1, code: 'online-exam', title: '在线考试', path: '/my/exam', parentId: null, sortOrder: 10, icon: null },
     { id: 2, code: 'exam-management', title: '考试管理', path: '/exam/manage', parentId: null, sortOrder: 20, icon: null },
     { id: 3, code: 'system-management', title: '系统管理', path: '/sys/roles', parentId: null, sortOrder: 30, icon: null },
+    { id: 4, code: 'platform-settings', title: '平台设置', path: '/sys/settings', parentId: null, sortOrder: 40, icon: null },
   ]
 }
 
@@ -43,7 +45,7 @@ function buildRoles(permissions: AdminPermission[], menus: AdminMenu[]): AdminRo
 function buildUsers(): DemoUser[] {
   const timestamp = nowIso()
   return [
-    { id: 1, departmentId: 1, departmentName: '默认组织', username: 'admin', displayName: '系统管理员', status: 'ACTIVE', roles: ['ADMIN'], roleIds: [1], password: 'password', createdAt: timestamp, updatedAt: timestamp },
-    { id: 2, departmentId: 2, departmentName: '教学部', username: 'zhangsan', displayName: '张三', status: 'ACTIVE', roles: ['STUDENT'], roleIds: [2], password: 'password', createdAt: timestamp, updatedAt: timestamp },
+    { id: 1, departmentId: 1, departmentName: '默认组织', username: 'admin', email: 'admin@example.com', emailVerified: true, registrationSource: 'ADMIN_CREATED', approvalStatus: 'APPROVED', displayName: '系统管理员', status: 'ACTIVE', roles: ['ADMIN'], roleIds: [1], password: 'password', createdAt: timestamp, updatedAt: timestamp },
+    { id: 2, departmentId: 2, departmentName: '教学部', username: 'zhangsan', email: 'zhangsan@example.com', emailVerified: true, registrationSource: 'ADMIN_CREATED', approvalStatus: 'APPROVED', displayName: '张三', status: 'ACTIVE', roles: ['STUDENT'], roleIds: [2], password: 'password', createdAt: timestamp, updatedAt: timestamp },
   ]
 }

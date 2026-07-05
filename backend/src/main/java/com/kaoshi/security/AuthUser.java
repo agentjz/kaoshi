@@ -12,6 +12,8 @@ public record AuthUser(
         String displayName,
         String password,
         String status,
+        Boolean emailVerified,
+        String approvalStatus,
         Boolean mustChangePassword,
         List<String> roles,
         List<String> permissions,
@@ -39,7 +41,7 @@ public record AuthUser(
 
     @Override
     public boolean isAccountNonLocked() {
-        return "ACTIVE".equals(status);
+        return isEnabled();
     }
 
     @Override
@@ -49,7 +51,7 @@ public record AuthUser(
 
     @Override
     public boolean isEnabled() {
-        return "ACTIVE".equals(status);
+        return "ACTIVE".equals(status) && Boolean.TRUE.equals(emailVerified) && "APPROVED".equals(approvalStatus);
     }
 }
 

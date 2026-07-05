@@ -64,6 +64,7 @@
       <el-table-column fixed="right" label="操作" width="350">
         <template #default="{ row }: { row: Exam }">
           <el-button link type="primary" @click="openEditEditor(row)">编辑</el-button>
+          <el-button link type="primary" @click="openGovernance(row)">治理</el-button>
           <el-button link type="primary" @click="openResults(row)">成绩</el-button>
           <el-button link type="primary" @click="copyCurrentExam(row)">复制</el-button>
           <el-button link type="primary" @click="downloadCurrentExam(row)">下载</el-button>
@@ -126,6 +127,7 @@
       :loading="resultsLoading"
       @open-detail="openResultDetail"
     />
+    <ExamGovernanceDrawer v-model:visible="governanceVisible" :exam="selectedGovernanceExam" />
   </section>
 </template>
 
@@ -136,6 +138,7 @@ import { Plus, Search } from '@element-plus/icons-vue'
 import { useRouter } from 'vue-router'
 
 import ExamEditorDialog from '@/components/admin/exams/ExamEditorDialog.vue'
+import ExamGovernanceDrawer from '@/components/admin/exams/ExamGovernanceDrawer.vue'
 import ExamPaperPreviewDialog from '@/components/admin/exams/ExamPaperPreviewDialog.vue'
 import ExamResultsDrawer from '@/components/admin/exams/ExamResultsDrawer.vue'
 import { fetchDepartments, type Department } from '@/api/admin'
@@ -169,7 +172,9 @@ const total = ref(0)
 const loading = ref(false)
 const resultsLoading = ref(false)
 const resultsVisible = ref(false)
+const governanceVisible = ref(false)
 const selectedResultExam = ref<Exam | null>(null)
+const selectedGovernanceExam = ref<Exam | null>(null)
 const query = reactive({ page: 1, size: 20, keyword: '' })
 
 const {
@@ -346,6 +351,11 @@ async function openResults(exam: Exam) {
   } finally {
     resultsLoading.value = false
   }
+}
+
+function openGovernance(exam: Exam) {
+  selectedGovernanceExam.value = exam
+  governanceVisible.value = true
 }
 
 function openResultDetail(resultId: number) {

@@ -2,10 +2,20 @@ import { examBusinessAdapter } from './adapters/current'
 import type { ExcelImportResult } from './admin'
 import type {
   Exam,
+  ExamAttemptEvent,
+  ExamParticipant,
   ExamPayload,
+  ExamReport,
+  ExamReviewRecheck,
+  ExamReviewRubric,
+  ExamReviewTask,
   ExamResult,
   ExamResultDetail,
+  ExamResultPolicy,
+  ExamSecurityEvent,
+  ExamSecurityPolicy,
   ExamSession,
+  FileAsset,
   NamedCategory,
   PageResult,
   Question,
@@ -18,6 +28,8 @@ import type {
 
 export type {
   Exam,
+  ExamAttemptEvent,
+  ExamParticipant,
   ExamPaperQuestion,
   ExamPaperQuestionPayload,
   ExamMaterialFile,
@@ -32,10 +44,18 @@ export type {
   ExamQuestionOption,
   ExamResult,
   ExamResultDetail,
+  ExamResultPolicy,
   ExamResultQuestion,
   ExamRule,
   ExamRulePayload,
+  ExamReport,
+  ExamReviewRecheck,
+  ExamReviewRubric,
+  ExamReviewTask,
+  ExamSecurityEvent,
+  ExamSecurityPolicy,
   ExamSession,
+  FileAsset,
   NamedCategory,
   Question,
   QuestionAttachment,
@@ -108,6 +128,10 @@ export function uploadFile(file: File): Promise<QuestionAttachmentPayload> {
   return examBusinessAdapter.uploadFile(file)
 }
 
+export function fetchFileAssets(): Promise<FileAsset[]> {
+  return examBusinessAdapter.fetchFileAssets()
+}
+
 export function fetchAdminExams(params: { page: number; size: number; keyword?: string }): Promise<PageResult<Exam>> {
   return examBusinessAdapter.fetchAdminExams(params)
 }
@@ -154,6 +178,90 @@ export function fetchAdminResults(params?: { examId?: number }): Promise<ExamRes
 
 export function fetchAdminResultDetail(resultId: number): Promise<ExamResultDetail> {
   return examBusinessAdapter.fetchAdminResultDetail(resultId)
+}
+
+export function fetchExamParticipants(examId: number): Promise<ExamParticipant[]> {
+  return examBusinessAdapter.fetchExamParticipants(examId)
+}
+
+export function replaceExamParticipants(examId: number, userIds: number[]): Promise<ExamParticipant[]> {
+  return examBusinessAdapter.replaceExamParticipants(examId, userIds)
+}
+
+export function updateExamAllowance(examId: number, userId: number, payload: { extraMinutes: number; extraAttempts: number; reason: string }): Promise<ExamParticipant> {
+  return examBusinessAdapter.updateExamAllowance(examId, userId, payload)
+}
+
+export function grantExamRetake(examId: number, userId: number, reason: string): Promise<ExamParticipant> {
+  return examBusinessAdapter.grantExamRetake(examId, userId, reason)
+}
+
+export function fetchExamResultPolicy(examId: number): Promise<ExamResultPolicy> {
+  return examBusinessAdapter.fetchExamResultPolicy(examId)
+}
+
+export function updateExamResultPolicy(examId: number, payload: { visibleToStudents: boolean; showAnswers: boolean; showAnalysis: boolean; releaseTime: string | null }): Promise<ExamResultPolicy> {
+  return examBusinessAdapter.updateExamResultPolicy(examId, payload)
+}
+
+export function fetchExamReport(examId: number): Promise<ExamReport> {
+  return examBusinessAdapter.fetchExamReport(examId)
+}
+
+export function fetchExamEvents(examId: number): Promise<ExamAttemptEvent[]> {
+  return examBusinessAdapter.fetchExamEvents(examId)
+}
+
+export function fetchExamSecurityPolicy(examId: number): Promise<ExamSecurityPolicy> {
+  return examBusinessAdapter.fetchExamSecurityPolicy(examId)
+}
+
+export function updateExamSecurityPolicy(examId: number, payload: Omit<ExamSecurityPolicy, 'examId' | 'updatedAt'>): Promise<ExamSecurityPolicy> {
+  return examBusinessAdapter.updateExamSecurityPolicy(examId, payload)
+}
+
+export function fetchExamSecurityEvents(examId: number): Promise<ExamSecurityEvent[]> {
+  return examBusinessAdapter.fetchExamSecurityEvents(examId)
+}
+
+export function recordExamSecurityEvent(examId: number, payload: { attemptId?: number | null; eventType: string; severity?: string; detail?: string }): Promise<void> {
+  return examBusinessAdapter.recordExamSecurityEvent(examId, payload)
+}
+
+export function fetchExamReviewRubrics(examId: number): Promise<ExamReviewRubric[]> {
+  return examBusinessAdapter.fetchExamReviewRubrics(examId)
+}
+
+export function replaceExamReviewRubrics(examId: number, payload: Array<{ title: string; description: string; maxScore: number; sortOrder: number }>): Promise<ExamReviewRubric[]> {
+  return examBusinessAdapter.replaceExamReviewRubrics(examId, payload)
+}
+
+export function fetchExamReviewTasks(examId: number): Promise<ExamReviewTask[]> {
+  return examBusinessAdapter.fetchExamReviewTasks(examId)
+}
+
+export function generateExamReviewTasks(examId: number): Promise<ExamReviewTask[]> {
+  return examBusinessAdapter.generateExamReviewTasks(examId)
+}
+
+export function claimExamReviewTask(examId: number, taskId: number): Promise<ExamReviewTask[]> {
+  return examBusinessAdapter.claimExamReviewTask(examId, taskId)
+}
+
+export function updateExamReviewTask(examId: number, taskId: number, status: ExamReviewTask['status']): Promise<ExamReviewTask[]> {
+  return examBusinessAdapter.updateExamReviewTask(examId, taskId, status)
+}
+
+export function fetchExamReviewRechecks(examId: number): Promise<ExamReviewRecheck[]> {
+  return examBusinessAdapter.fetchExamReviewRechecks(examId)
+}
+
+export function requestExamReviewRecheck(examId: number, taskId: number, reason: string): Promise<ExamReviewRecheck[]> {
+  return examBusinessAdapter.requestExamReviewRecheck(examId, taskId, reason)
+}
+
+export function updateExamReviewRecheck(examId: number, recheckId: number, status: ExamReviewRecheck['status'], resolution: string): Promise<ExamReviewRecheck[]> {
+  return examBusinessAdapter.updateExamReviewRecheck(examId, recheckId, status, resolution)
 }
 
 export function fetchExamTasks(): Promise<Exam[]> {

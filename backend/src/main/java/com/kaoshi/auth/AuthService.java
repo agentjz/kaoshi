@@ -4,6 +4,7 @@ import com.kaoshi.auth.dto.CurrentUserResponse;
 import com.kaoshi.auth.dto.LoginRequest;
 import com.kaoshi.auth.dto.LoginResponse;
 import com.kaoshi.auth.dto.ChangePasswordRequest;
+import com.kaoshi.auth.audit.AuditEventService;
 import com.kaoshi.common.api.ErrorCode;
 import com.kaoshi.common.exception.BusinessException;
 import com.kaoshi.security.AuthUser;
@@ -11,11 +12,16 @@ import com.kaoshi.security.JwtProperties;
 import com.kaoshi.security.JwtService;
 import com.kaoshi.user.domain.UserAccount;
 import com.kaoshi.user.mapper.UserMapper;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+
+import java.time.LocalDateTime;
+import java.util.Map;
 
 @Service
 public class AuthService {
@@ -24,26 +30,40 @@ public class AuthService {
     private final JwtProperties jwtProperties;
     private final UserMapper userMapper;
     private final PasswordEncoder passwordEncoder;
+    private final AuditEventService auditEventService;
 
     public AuthService(
             AuthenticationManager authenticationManager,
             JwtService jwtService,
             JwtProperties jwtProperties,
             UserMapper userMapper,
-            PasswordEncoder passwordEncoder
+            PasswordEncoder passwordEncoder,
+            AuditEventService auditEventService
     ) {
         this.authenticationManager = authenticationManager;
         this.jwtService = jwtService;
         this.jwtProperties = jwtProperties;
         this.userMapper = userMapper;
         this.passwordEncoder = passwordEncoder;
+        this.auditEventService = auditEventService;
     }
 
-    public LoginResponse login(LoginRequest request) {
-        Authentication authentication = authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(request.username(), request.password())
-        );
+    public LoginResponse login(LoginRequest request, HttpServletRequest servletRequest) {
+        Authentication authentication;
+        try {
+            authentication = authenticationManager.authenticate(
+                    new UsernamePasswordAuthenticationToken(request.username(), request.password())
+            );
+        } catch (AuthenticationException exception) {
+            auditEventService.recordSystem("AUTH_LOGIN_FAILED", "USER", request.username(), request.username(), servletRequest, Map.of("reason", exception.getClass().getSimpleName()));
+            throw exception;
+        }
         AuthUser user = (AuthUser) authentication.getPrincipal();
+        UserAccount account = userMapper.selectById(user.id());
+        if (account != null) {
+            account.setLastLoginAt(LocalDateTime.now());
+            userMapper.updateById(account);
+        }
         return new LoginResponse(
                 jwtService.issue(user),
                 "Bearer",

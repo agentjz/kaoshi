@@ -1079,6 +1079,303 @@ class ExamBusinessFlowTests {
                 .andExpect(jsonPath("$.data.fileName").value("listening.mp3"))
                 .andExpect(jsonPath("$.data.fileUrl").value(startsWith("/uploads/")))
                 .andExpect(jsonPath("$.data.mediaType").value("AUDIO"));
+
+        mockMvc.perform(get("/api/admin/files")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].originalName").value("listening.mp3"))
+                .andExpect(jsonPath("$.data[0].mediaType").value("AUDIO"));
+    }
+
+    @Test
+    void examGovernanceControlsRosterAllowanceResultPolicyReportAndEvents() throws Exception {
+        String adminToken = adminToken();
+        String studentToken = studentToken();
+        long bankId = createBank(adminToken, "治理题库");
+        long questionId = createSingleChoiceQuestion(adminToken, bankId);
+
+        String examResponse = createDraftExam(adminToken, bankId, """
+                "title": "治理考试",
+                "description": "用于验证考生名册、补考和成绩发布",
+                "qualifyScore": 6,
+                "startTime": "2026-01-01T00:00:00",
+                "endTime": "2026-12-31T23:59:59",
+                "durationMinutes": 20,
+                "timeLimit": true,
+                "attemptLimit": 1,
+                "displayMode": "PAGED",
+                "questionOrderMode": "FIXED",
+                "openType": "PUBLIC"
+                """);
+        long examId = objectMapper.readTree(examResponse).at("/data/id").asLong();
+        publishExam(adminToken, examId);
+
+        mockMvc.perform(put("/api/admin/exams/{examId}/governance/participants", examId)
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"userIds":[2]}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].username").value("zhangsan"));
+
+        mockMvc.perform(post("/api/exam/{examId}/start", examId)
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isForbidden());
+
+        mockMvc.perform(put("/api/admin/exams/{examId}/governance/participants/{userId}/allowance", examId, 2)
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"extraMinutes":15,"extraAttempts":0,"reason":"听力设备故障"}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.extraMinutes").value(15));
+
+        mockMvc.perform(post("/api/exam/{examId}/start", examId)
+                        .header("Authorization", "Bearer " + studentToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.durationMinutes").value(35));
+
+        String submitResponse = mockMvc.perform(post("/api/exam/{examId}/submit", examId)
+                        .header("Authorization", "Bearer " + studentToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "answers": [
+                                    {"questionId": %d, "selectedLabels": ["B"]}
+                                  ]
+                                }
+                                """.formatted(questionId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.obtainedScore").value(10))
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+        long resultId = objectMapper.readTree(submitResponse).at("/data/id").asLong();
+
+        mockMvc.perform(post("/api/exam/{examId}/start", examId)
+                        .header("Authorization", "Bearer " + studentToken))
+                .andExpect(status().isConflict());
+
+        mockMvc.perform(post("/api/admin/exams/{examId}/governance/participants/{userId}/retake", examId, 2)
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"reason":"补考一次"}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.extraAttempts").value(1));
+
+        mockMvc.perform(post("/api/exam/{examId}/start", examId)
+                        .header("Authorization", "Bearer " + studentToken))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(put("/api/admin/exams/{examId}/governance/result-policy", examId)
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"visibleToStudents":false,"showAnswers":true,"showAnalysis":true}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.visibleToStudents").value(false));
+
+        mockMvc.perform(get("/api/exam/results")
+                        .header("Authorization", "Bearer " + studentToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(0));
+
+        mockMvc.perform(get("/api/exam/results/{resultId}", resultId)
+                        .header("Authorization", "Bearer " + studentToken))
+                .andExpect(status().isNotFound());
+
+        mockMvc.perform(put("/api/admin/exams/{examId}/governance/result-policy", examId)
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"visibleToStudents":true,"showAnswers":false,"showAnalysis":false}
+                                """))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/exam/results/{resultId}", resultId)
+                        .header("Authorization", "Bearer " + studentToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.questions[0].correctLabels.length()").value(0))
+                .andExpect(jsonPath("$.data.questions[0].correct").doesNotExist())
+                .andExpect(jsonPath("$.data.questions[0].analysis").doesNotExist());
+
+        mockMvc.perform(get("/api/admin/exams/{examId}/governance/report", examId)
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.participantCount").value(1))
+                .andExpect(jsonPath("$.data.submittedCount").value(1))
+                .andExpect(jsonPath("$.data.passRate").value(100.0));
+
+        mockMvc.perform(get("/api/admin/exams/{examId}/governance/events", examId)
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[*].action").value(hasItems(
+                        "EXAM_PARTICIPANTS_REPLACED",
+                        "EXAM_ALLOWANCE_UPDATED",
+                        "EXAM_RETAKE_GRANTED",
+                        "EXAM_RESULT_POLICY_UPDATED"
+                )));
+    }
+
+    @Test
+    void platformGovernanceControlsSecurityReviewTasksNotificationsAndIntegrations() throws Exception {
+        String adminToken = adminToken();
+        String studentToken = studentToken();
+        long bankId = createBank(adminToken, "平台治理题库");
+        long writingQuestionId = createWritingQuestion(adminToken, bankId);
+
+        String examResponse = createDraftExam(adminToken, bankId, 0, 0, 1, """
+                "title": "平台治理考试",
+                "description": "用于验证安全事件、阅卷任务和外部集成边界",
+                "qualifyScore": 6,
+                "startTime": "2026-01-01T00:00:00",
+                "endTime": "2026-12-31T23:59:59",
+                "durationMinutes": 20,
+                "timeLimit": true,
+                "attemptLimit": null,
+                "displayMode": "ALL",
+                "questionOrderMode": "FIXED",
+                "openType": "PUBLIC"
+                """);
+        long examId = objectMapper.readTree(examResponse).at("/data/id").asLong();
+        publishExam(adminToken, examId);
+
+        mockMvc.perform(put("/api/admin/exams/{examId}/governance/security-policy", examId)
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"requireFullscreen":true,"forbidCopyPaste":true,"trackFocusLoss":true,"maxFocusLossCount":2,"deviceCheckRequired":true}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.requireFullscreen").value(true))
+                .andExpect(jsonPath("$.data.maxFocusLossCount").value(2));
+
+        String startResponse = mockMvc.perform(post("/api/exam/{examId}/start", examId)
+                        .header("Authorization", "Bearer " + studentToken))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+        long attemptId = objectMapper.readTree(startResponse).at("/data/attemptId").asLong();
+
+        mockMvc.perform(post("/api/exam/{examId}/security-events", examId)
+                        .header("Authorization", "Bearer " + studentToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"attemptId":%d,"eventType":"FOCUS_LOST","severity":"WARN","detail":"测试离开页面"}
+                                """.formatted(attemptId)))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/admin/exams/{examId}/governance/security-events", examId)
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].eventType").value("FOCUS_LOST"))
+                .andExpect(jsonPath("$.data[0].severity").value("WARN"));
+
+        mockMvc.perform(put("/api/admin/exams/{examId}/governance/rubrics", examId)
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                [
+                                  {"title":"内容","description":"观点完整","maxScore":8,"sortOrder":10},
+                                  {"title":"语言","description":"表达准确","maxScore":7,"sortOrder":20}
+                                ]
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(2))
+                .andExpect(jsonPath("$.data[0].title").value("内容"));
+
+        String submitResponse = mockMvc.perform(post("/api/exam/{examId}/submit", examId)
+                        .header("Authorization", "Bearer " + studentToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "answers": [
+                                    {"questionId": %d, "answerText": "A writing response waiting for review."}
+                                  ]
+                                }
+                                """.formatted(writingQuestionId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.gradingStatus").value("PENDING_REVIEW"))
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+        long resultId = objectMapper.readTree(submitResponse).at("/data/id").asLong();
+
+        String taskResponse = mockMvc.perform(post("/api/admin/exams/{examId}/governance/review-tasks/generate", examId)
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].resultId").value(resultId))
+                .andExpect(jsonPath("$.data[0].status").value("PENDING"))
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+        long taskId = objectMapper.readTree(taskResponse).at("/data/0/id").asLong();
+
+        mockMvc.perform(post("/api/admin/exams/{examId}/governance/review-tasks/{taskId}/claim", examId, taskId)
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].status").value("IN_PROGRESS"));
+
+        String recheckResponse = mockMvc.perform(post("/api/admin/exams/{examId}/governance/review-tasks/{taskId}/recheck", examId, taskId)
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"reason":"抽样复核"}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].status").value("REQUESTED"))
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+        long recheckId = objectMapper.readTree(recheckResponse).at("/data/0/id").asLong();
+
+        mockMvc.perform(put("/api/admin/exams/{examId}/governance/rechecks/{recheckId}", examId, recheckId)
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"status":"RESOLVED","resolution":"复核通过"}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].resolution").value("复核通过"));
+
+        mockMvc.perform(put("/api/admin/exams/{examId}/governance/review-tasks/{taskId}", examId, taskId)
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"status":"COMPLETED"}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].status").value("COMPLETED"));
+
+        String integrationResponse = mockMvc.perform(post("/api/admin/platform/integrations")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"name":"成绩同步 Webhook","integrationType":"WEBHOOK","endpointUrl":"https://example.com/result","secretMask":"secret-1234","enabled":true}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.secretMask").value("****1234"))
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+        long integrationId = objectMapper.readTree(integrationResponse).at("/data/id").asLong();
+
+        mockMvc.perform(post("/api/admin/platform/integrations/{integrationId}/test", integrationId)
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].eventType").value("TEST"))
+                .andExpect(jsonPath("$.data[0].status").value("QUEUED"));
+
+        mockMvc.perform(get("/api/admin/platform/notifications")
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[*].category").value(hasItems("SECURITY", "REVIEW", "INTEGRATION")));
     }
 
     @Test
@@ -1341,6 +1638,22 @@ class ExamBusinessFlowTests {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"username":"admin","password":"password"}
+                                """))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+        JsonNode root = objectMapper.readTree(response);
+        String token = root.at("/data/accessToken").asText();
+        assertThat(token).isNotBlank();
+        return token;
+    }
+
+    private String studentToken() throws Exception {
+        String response = mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"username":"zhangsan","password":"password"}
                                 """))
                 .andExpect(status().isOk())
                 .andReturn()

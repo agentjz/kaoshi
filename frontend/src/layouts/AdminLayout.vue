@@ -42,6 +42,7 @@
           <el-menu-item index="/sys/roles">角色管理</el-menu-item>
           <el-menu-item index="/sys/departments">部门管理</el-menu-item>
           <el-menu-item index="/sys/users">用户管理</el-menu-item>
+          <el-menu-item index="/sys/settings">平台设置</el-menu-item>
         </el-sub-menu>
       </el-menu>
     </el-aside>

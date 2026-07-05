@@ -13,6 +13,7 @@ import com.kaoshi.exam.dto.ExamSaveRequest;
 import com.kaoshi.exam.dto.ExamSessionResponse;
 import com.kaoshi.exam.dto.ExamSubmitRequest;
 import com.kaoshi.exam.dto.WritingReviewRequest;
+import com.kaoshi.exam.governance.ExamGovernanceService;
 import com.kaoshi.exam.mapper.ExamMapper;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
@@ -39,15 +40,17 @@ public class ExamService {
     private final ExamAttemptWorkflow attemptWorkflow;
     private final ExamGradingWorkflow gradingWorkflow;
     private final ExamPaperExportService exportService;
+    private final ExamGovernanceService governanceService;
 
-    public ExamService(ExamMapper examMapper) {
+    public ExamService(ExamMapper examMapper, ExamGovernanceService governanceService) {
         this.examMapper = examMapper;
+        this.governanceService = governanceService;
         this.assembler = new ExamResponseAssembler(examMapper);
         this.paperWorkflow = new ExamPaperWorkflow(examMapper);
         this.materialWorkflow = new ExamMaterialWorkflow(examMapper);
         this.structuredPaperWorkflow = new ExamStructuredPaperWorkflow(examMapper, assembler);
         this.answerSheetWorkflow = new ExamAnswerSheetWorkflow(examMapper, materialWorkflow);
-        this.attemptWorkflow = new ExamAttemptWorkflow(examMapper);
+        this.attemptWorkflow = new ExamAttemptWorkflow(examMapper, governanceService);
         this.gradingWorkflow = new ExamGradingWorkflow(examMapper);
         this.exportService = new ExamPaperExportService(examMapper);
     }
@@ -185,13 +188,10 @@ public class ExamService {
 
     public List<ExamResponse> publishedExams(Long userId) {
         Long departmentId = examMapper.findUserDepartmentId(userId);
-        if (departmentId == null) {
-            return examMapper.findPublishedExams().stream()
-                    .filter(exam -> "PUBLIC".equals(exam.getOpenType()))
-                    .map(assembler::toResponse)
-                    .toList();
-        }
-        return examMapper.findPublishedExamsByDepartment(departmentId).stream().map(assembler::toResponse).toList();
+        return examMapper.findPublishedExams().stream()
+                .filter(exam -> isVisibleExamTask(exam, userId, departmentId))
+                .map(assembler::toResponse)
+                .toList();
     }
 
     @Transactional
@@ -212,7 +212,7 @@ public class ExamService {
             attemptWorkflow.createAttemptSnapshot(exam, longValue(value(attempt, "id")));
         }
         attemptWorkflow.ensureAttemptCanContinue(exam, attempt);
-        return assembler.sessionResponse(exam, attempt);
+        return assembler.sessionResponse(exam, attempt, governanceService.effectiveDurationMinutes(exam, userId));
     }
 
     @Transactional
@@ -223,7 +223,7 @@ public class ExamService {
         Map<String, Object> attempt = attemptWorkflow.findRunningAttempt(examId, userId);
         attemptWorkflow.ensureAttemptCanContinue(exam, attempt);
         attemptWorkflow.saveAnswerSnapshotForAttempt(longValue(value(attempt, "id")), request.answers());
-        return assembler.sessionResponse(exam, attempt);
+        return assembler.sessionResponse(exam, attempt, governanceService.effectiveDurationMinutes(exam, userId));
     }
 
     @Transactional
@@ -245,7 +245,10 @@ public class ExamService {
     }
 
     public List<ExamResultResponse> userResults(Long userId) {
-        return examMapper.findResultsByUser(userId).stream().map(assembler::toResultResponse).toList();
+        return examMapper.findResultsByUser(userId).stream()
+                .filter(result -> governanceService.isResultVisibleToStudent(longValue(value(result, "examId"))))
+                .map(assembler::toResultResponse)
+                .toList();
     }
 
     public ExamResultDetailResponse adminResultDetail(Long resultId) {
@@ -269,7 +272,24 @@ public class ExamService {
         if (!userId.equals(longValue(value(result, "userId")))) {
             throw new BusinessException(ErrorCode.NOT_FOUND, "成绩不存在");
         }
-        return assembler.toResultDetailResponse(result);
+        Long examId = longValue(value(result, "examId"));
+        if (!governanceService.isResultVisibleToStudent(examId)) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, "成绩不存在");
+        }
+        return assembler.toResultDetailResponse(
+                result,
+                governanceService.shouldShowAnswers(examId),
+                governanceService.shouldShowAnalysis(examId)
+        );
+    }
+
+    private boolean isVisibleExamTask(Exam exam, Long userId, Long departmentId) {
+        try {
+            governanceService.ensureExamOpenToUser(exam, userId);
+            return true;
+        } catch (BusinessException exception) {
+            return false;
+        }
     }
 
     private Exam findExam(Long id) {

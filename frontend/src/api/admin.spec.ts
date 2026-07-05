@@ -2,21 +2,35 @@ import { describe, expect, it, vi } from 'vitest'
 
 import {
   changeAdminUserStatus,
+  approveRegistrationRequest,
   createAdminRole,
   createAdminUser,
   createDepartment,
+  createExternalIntegration,
   deleteDepartment,
   downloadUserExport,
   downloadUserImportTemplate,
+  fetchExternalIntegrationEvents,
+  fetchExternalIntegrations,
+  fetchAdminMailStatus,
   fetchAdminMenus,
   fetchAdminPermissions,
+  fetchAdminRegistrationSettings,
   fetchAdminRoles,
   fetchAdminUsers,
   fetchDepartments,
+  fetchPlatformNotifications,
+  fetchRegistrationRequests,
   importUsers,
+  markPlatformNotificationRead,
+  rejectRegistrationRequest,
+  sendAdminTestMail,
+  testExternalIntegration,
   updateDepartment,
   updateAdminRole,
+  updateAdminRegistrationSettings,
   updateAdminUser,
+  updateExternalIntegration,
 } from './admin'
 import { apiClient } from './client'
 
@@ -124,5 +138,67 @@ describe('admin api', () => {
       status: 'DISABLED',
     })
     expect(apiClient.delete).toHaveBeenCalledWith('/api/admin/departments/2')
+  })
+
+  it('uses identity settings and registration review endpoints', async () => {
+    vi.mocked(apiClient.get).mockResolvedValue(ok([]))
+    vi.mocked(apiClient.put).mockResolvedValue(ok({}))
+    vi.mocked(apiClient.post).mockResolvedValue(ok({}))
+
+    const settings = {
+      selfRegistrationEnabled: true,
+      emailVerificationRequired: true,
+      adminApprovalRequired: false,
+      defaultRoleCode: 'STUDENT',
+      defaultDepartmentId: 2,
+      allowedEmailDomains: ['example.com'],
+      termsText: '',
+    }
+
+    await fetchAdminRegistrationSettings()
+    await updateAdminRegistrationSettings(settings)
+    await fetchAdminMailStatus()
+    await sendAdminTestMail('admin@example.com')
+    await fetchRegistrationRequests()
+    await approveRegistrationRequest(8)
+    await rejectRegistrationRequest(9, '信息不完整')
+
+    expect(apiClient.get).toHaveBeenCalledWith('/api/admin/auth/registration-settings')
+    expect(apiClient.put).toHaveBeenCalledWith('/api/admin/auth/registration-settings', settings)
+    expect(apiClient.get).toHaveBeenCalledWith('/api/admin/auth/mail-status')
+    expect(apiClient.post).toHaveBeenCalledWith('/api/admin/auth/test-mail', { email: 'admin@example.com' })
+    expect(apiClient.get).toHaveBeenCalledWith('/api/admin/auth/registration-requests')
+    expect(apiClient.post).toHaveBeenCalledWith('/api/admin/auth/registration-requests/8/approve')
+    expect(apiClient.post).toHaveBeenCalledWith('/api/admin/auth/registration-requests/9/reject', { reason: '信息不完整' })
+  })
+
+  it('uses platform notification and integration endpoints', async () => {
+    vi.mocked(apiClient.get).mockResolvedValue(ok([]))
+    vi.mocked(apiClient.post).mockResolvedValue(ok({}))
+    vi.mocked(apiClient.put).mockResolvedValue(ok({}))
+
+    const integration = {
+      name: 'Webhook',
+      integrationType: 'WEBHOOK',
+      endpointUrl: 'https://example.com/hook',
+      secretMask: '****',
+      enabled: true,
+    }
+
+    await fetchPlatformNotifications()
+    await markPlatformNotificationRead(2)
+    await fetchExternalIntegrations()
+    await createExternalIntegration(integration)
+    await updateExternalIntegration(3, integration)
+    await testExternalIntegration(3)
+    await fetchExternalIntegrationEvents()
+
+    expect(apiClient.get).toHaveBeenCalledWith('/api/admin/platform/notifications')
+    expect(apiClient.post).toHaveBeenCalledWith('/api/admin/platform/notifications/2/read')
+    expect(apiClient.get).toHaveBeenCalledWith('/api/admin/platform/integrations')
+    expect(apiClient.post).toHaveBeenCalledWith('/api/admin/platform/integrations', integration)
+    expect(apiClient.put).toHaveBeenCalledWith('/api/admin/platform/integrations/3', integration)
+    expect(apiClient.post).toHaveBeenCalledWith('/api/admin/platform/integrations/3/test')
+    expect(apiClient.get).toHaveBeenCalledWith('/api/admin/platform/integration-events')
   })
 })

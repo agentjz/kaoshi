@@ -21,6 +21,20 @@ spring:
     sql-migration-prefix: MIGRATION
   jackson:
     time-zone: Asia/Shanghai
+  mail:
+    host: ${KAOSHI_MAIL_HOST:localhost}
+    port: ${KAOSHI_MAIL_PORT:25}
+    username: ${KAOSHI_MAIL_USERNAME:}
+    password: ${KAOSHI_MAIL_PASSWORD:}
+    protocol: ${KAOSHI_MAIL_PROTOCOL:smtp}
+    properties:
+      mail:
+        smtp:
+          auth: ${KAOSHI_MAIL_AUTH:false}
+          ssl:
+            enable: ${KAOSHI_MAIL_SSL_ENABLED:false}
+          starttls:
+            enable: ${KAOSHI_MAIL_STARTTLS_ENABLED:false}
 
 mybatis-plus:
   configuration:
@@ -29,6 +43,9 @@ mybatis-plus:
     banner: false
 
 management:
+  health:
+    mail:
+      enabled: false
   endpoints:
     web:
       exposure:
@@ -43,4 +60,9 @@ kaoshi:
     issuer: kaoshi
     secret: ${KAOSHI_JWT_SECRET:kaoshi-local-development-secret-key-must-be-at-least-32-bytes}
     access-token-minutes: 120
+  mail:
+    enabled: ${KAOSHI_MAIL_ENABLED:false}
+    delivery-mode: ${KAOSHI_MAIL_DELIVERY_MODE:SMTP}
+    from: ${KAOSHI_MAIL_FROM:}
+    expose-debug-code: ${KAOSHI_MAIL_EXPOSE_DEBUG_CODE:false}
 

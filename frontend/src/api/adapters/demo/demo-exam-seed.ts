@@ -188,6 +188,35 @@ function buildExam(state: DemoState) {
     questionCount: answerSheetQuestions.length,
     totalScore: answerSheetQuestions.reduce((sum, question) => sum + question.score, 0),
   })
+  seedGovernance(state)
+}
+
+function seedGovernance(state: DemoState) {
+  for (const exam of state.exams) {
+    state.securityPolicies[exam.id] = {
+      examId: exam.id,
+      requireFullscreen: false,
+      forbidCopyPaste: true,
+      trackFocusLoss: true,
+      maxFocusLossCount: 3,
+      deviceCheckRequired: false,
+      updatedAt: null,
+    }
+  }
+  const mainExam = state.exams[0]
+  const answerSheetExam = state.exams[1]
+  if (mainExam) {
+    state.reviewRubrics[mainExam.id] = [
+      { id: nextId(state), examId: mainExam.id, title: '内容完整', description: '观点明确，覆盖题目要求。', maxScore: 12, sortOrder: 10 },
+      { id: nextId(state), examId: mainExam.id, title: '语言表达', description: '语法、词汇和句式准确。', maxScore: 12, sortOrder: 20 },
+      { id: nextId(state), examId: mainExam.id, title: '结构组织', description: '段落清楚，衔接自然。', maxScore: 6, sortOrder: 30 },
+    ]
+  }
+  if (answerSheetExam) {
+    state.reviewRubrics[answerSheetExam.id] = [
+      { id: nextId(state), examId: answerSheetExam.id, title: '答题卡写作表达', description: '围绕材料完成写作，语言清楚。', maxScore: 10, sortOrder: 10 },
+    ]
+  }
 }
 
 function answerSheetMaterialGroups(state: DemoState): ExamMaterialGroup[] {

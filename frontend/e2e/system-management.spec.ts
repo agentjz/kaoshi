@@ -14,11 +14,38 @@ test.describe('系统管理', () => {
     await expect(page.getByRole('menuitem', { name: '用户管理' })).toBeVisible()
     await expect(page.getByRole('menuitem', { name: '角色管理' })).toBeVisible()
     await expect(page.getByRole('menuitem', { name: '部门管理' })).toBeVisible()
+    await expect(page.getByRole('menuitem', { name: '平台设置' })).toBeVisible()
     await expect(page.getByRole('menuitem', { name: '题库管理' })).toBeVisible()
     await expect(page.getByRole('menuitem', { name: '试题管理' })).toHaveCount(0)
     const menuTexts = await page.locator('li.el-menu-item').allTextContents()
     expect(menuTexts.indexOf('角色管理')).toBeLessThan(menuTexts.indexOf('部门管理'))
     expect(menuTexts.indexOf('部门管理')).toBeLessThan(menuTexts.indexOf('用户管理'))
+
+    expect(consoleIssues).toEqual([])
+  })
+
+  test('平台设置展示通知中心和外部集成边界', async ({ page }) => {
+    const consoleIssues = collectConsoleIssues(page)
+    await login(page)
+
+    await page.getByRole('menuitem', { name: '平台设置' }).click()
+    await expect(page.getByRole('heading', { name: '平台设置' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: '通知中心' })).toBeVisible()
+    await expect(page.getByText('平台治理能力已启用')).toBeVisible()
+    await page.getByRole('button', { name: '标记已读' }).first().click()
+    await expect(page.getByText('已读').first()).toBeVisible()
+
+    await expect(page.getByRole('heading', { name: '外部集成' })).toBeVisible()
+    await expect(page.getByText('默认 Webhook 边界')).toBeVisible()
+    await page.getByLabel('名称').fill(`浏览器 Webhook ${Date.now()}`)
+    await page.getByLabel('Endpoint').fill('https://example.com/kaoshi/e2e-webhook')
+    await page.getByLabel('Secret').fill('e2e-secret')
+    await page.getByRole('button', { name: '保存集成' }).click()
+    await expect(page.getByText('外部集成已保存')).toBeVisible()
+    await page.getByRole('row').filter({ hasText: '浏览器 Webhook' }).getByRole('button', { name: '测试' }).click()
+    await expect(page.getByText('测试事件已记录')).toBeVisible()
+    await expect(page.locator('.integration-events')).toContainText('TEST')
+    await expect(page.locator('.integration-events')).toContainText('QUEUED')
 
     expect(consoleIssues).toEqual([])
   })

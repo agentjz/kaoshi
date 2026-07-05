@@ -6,11 +6,17 @@ import type {
   Department,
   DepartmentPayload,
   ExcelImportResult,
+  ExternalIntegration,
+  ExternalIntegrationEvent,
+  ExternalIntegrationPayload,
   PageResult,
+  PlatformNotification,
+  RegistrationRequest,
   RoleSavePayload,
   UserCreatePayload,
   UserUpdatePayload,
 } from '../admin'
+import type { MailStatus, RegistrationSettings } from '../types'
 
 export interface AdminAdapter {
   fetchAdminUsers(params: { page: number; size: number; keyword?: string }): Promise<PageResult<AdminUser>>
@@ -29,4 +35,18 @@ export interface AdminAdapter {
   createDepartment(payload: DepartmentPayload): Promise<Department>
   updateDepartment(id: number, payload: DepartmentPayload): Promise<Department>
   deleteDepartment(id: number): Promise<void>
+  fetchRegistrationSettings(): Promise<RegistrationSettings>
+  updateRegistrationSettings(payload: RegistrationSettings): Promise<RegistrationSettings>
+  fetchMailStatus(): Promise<MailStatus>
+  sendTestMail(email: string): Promise<void>
+  fetchRegistrationRequests(): Promise<RegistrationRequest[]>
+  approveRegistrationRequest(userId: number): Promise<RegistrationRequest>
+  rejectRegistrationRequest(userId: number, reason: string): Promise<RegistrationRequest>
+  fetchPlatformNotifications(): Promise<PlatformNotification[]>
+  markPlatformNotificationRead(id: number): Promise<void>
+  fetchExternalIntegrations(): Promise<ExternalIntegration[]>
+  createExternalIntegration(payload: ExternalIntegrationPayload): Promise<ExternalIntegration>
+  updateExternalIntegration(id: number, payload: ExternalIntegrationPayload): Promise<ExternalIntegration>
+  testExternalIntegration(id: number): Promise<ExternalIntegrationEvent[]>
+  fetchExternalIntegrationEvents(): Promise<ExternalIntegrationEvent[]>
 }

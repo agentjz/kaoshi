@@ -38,13 +38,13 @@ final class ExamResponseAssembler {
         this.examMapper = examMapper;
     }
 
-    ExamSessionResponse sessionResponse(Exam exam, Map<String, Object> attempt) {
+    ExamSessionResponse sessionResponse(Exam exam, Map<String, Object> attempt, Integer durationMinutes) {
         Long attemptId = longValue(value(attempt, "id"));
         return new ExamSessionResponse(
                 exam.getId(),
                 attemptId,
                 exam.getTitle(),
-                exam.getDurationMinutes(),
+                durationMinutes,
                 exam.getExamMode(),
                 exam.getDisplayMode(),
                 dateTimeValue(value(attempt, "startedAt")),
@@ -124,6 +124,10 @@ final class ExamResponseAssembler {
     }
 
     ExamResultDetailResponse toResultDetailResponse(Map<String, Object> row) {
+        return toResultDetailResponse(row, true, true);
+    }
+
+    ExamResultDetailResponse toResultDetailResponse(Map<String, Object> row, boolean showAnswers, boolean showAnalysis) {
         Long attemptId = longValue(value(row, "attemptId"));
         return new ExamResultDetailResponse(
                 longValue(value(row, "id")),
@@ -145,7 +149,7 @@ final class ExamResponseAssembler {
                 dateTimeValue(value(row, "submittedAt")),
                 dateTimeValueOrNull(value(row, "reviewedAt")),
                 examMapper.findResultQuestions(attemptId).stream()
-                        .map(this::toResultQuestionResponse)
+                        .map(question -> toResultQuestionResponse(question, showAnswers, showAnalysis))
                         .toList()
         );
     }
@@ -253,19 +257,23 @@ final class ExamResponseAssembler {
     }
 
     private ExamResultQuestionResponse toResultQuestionResponse(Map<String, Object> row) {
+        return toResultQuestionResponse(row, true, true);
+    }
+
+    private ExamResultQuestionResponse toResultQuestionResponse(Map<String, Object> row, boolean showAnswers, boolean showAnalysis) {
         Long attemptQuestionId = longValue(value(row, "attemptQuestionId"));
         return new ExamResultQuestionResponse(
                 longValue(value(row, "questionId")),
                 stringValue(value(row, "type")),
                 stringValue(value(row, "stem")),
-                stringValue(value(row, "analysis")),
+                showAnalysis ? stringValue(value(row, "analysis")) : null,
                 decimalValue(value(row, "score")),
                 decimalValue(value(row, "obtainedScore")),
                 intValue(value(row, "sortOrder")),
                 splitLabels(stringValue(value(row, "selectedLabels"))),
                 stringValue(value(row, "answerText")),
-                normalizedLabels(examMapper.findAttemptCorrectLabels(attemptQuestionId)),
-                booleanValue(value(row, "correct")),
+                showAnswers ? normalizedLabels(examMapper.findAttemptCorrectLabels(attemptQuestionId)) : List.of(),
+                showAnswers ? booleanValue(value(row, "correct")) : null,
                 stringValue(value(row, "reviewComment")),
                 stringValue(value(row, "reviewerName")),
                 dateTimeValueOrNull(value(row, "reviewedAt")),

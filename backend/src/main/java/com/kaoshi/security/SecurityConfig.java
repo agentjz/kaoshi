@@ -1,6 +1,7 @@
 package com.kaoshi.security;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.kaoshi.auth.mail.MailProperties;
 import com.kaoshi.common.api.ApiResponse;
 import com.kaoshi.common.api.ErrorCode;
 import jakarta.servlet.http.HttpServletResponse;
@@ -24,7 +25,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 @Configuration
 @EnableWebSecurity
 @EnableMethodSecurity
-@EnableConfigurationProperties(JwtProperties.class)
+@EnableConfigurationProperties({JwtProperties.class, MailProperties.class})
 public class SecurityConfig {
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
     private final AuthUserService authUserService;
@@ -45,7 +46,18 @@ public class SecurityConfig {
         http.csrf(csrf -> csrf.disable())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/health", "/api/auth/login", "/actuator/health", "/uploads/**").permitAll()
+                        .requestMatchers(
+                                "/api/health",
+                                "/api/auth/login",
+                                "/api/auth/registration-settings",
+                                "/api/auth/mail-status",
+                                "/api/auth/verification-codes",
+                                "/api/auth/password-reset-codes",
+                                "/api/auth/register",
+                                "/api/auth/reset-password",
+                                "/actuator/health",
+                                "/uploads/**"
+                        ).permitAll()
                         .anyRequest().authenticated()
                 )
                 .exceptionHandling(exceptions -> exceptions

@@ -3,9 +3,12 @@ package com.kaoshi.common.file;
 import com.kaoshi.common.api.ApiResponse;
 import com.kaoshi.common.api.ErrorCode;
 import com.kaoshi.common.exception.BusinessException;
+import com.kaoshi.security.AuthUser;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -29,13 +32,15 @@ public class UploadController {
     );
 
     private final Path uploadRoot;
+    private final FileAssetService fileAssetService;
 
-    public UploadController(@Value("${kaoshi.upload.dir:uploads}") String uploadDir) {
+    public UploadController(@Value("${kaoshi.upload.dir:uploads}") String uploadDir, FileAssetService fileAssetService) {
         this.uploadRoot = Path.of(uploadDir).toAbsolutePath().normalize();
+        this.fileAssetService = fileAssetService;
     }
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ApiResponse<FileUploadResponse> upload(@RequestParam("file") MultipartFile file) {
+    public ApiResponse<FileUploadResponse> upload(@RequestParam("file") MultipartFile file, @AuthenticationPrincipal AuthUser user) {
         if (file.isEmpty()) {
             throw new BusinessException(ErrorCode.VALIDATION_FAILED, "上传文件不能为空");
         }
@@ -56,11 +61,19 @@ public class UploadController {
         } catch (IOException exception) {
             throw new BusinessException(ErrorCode.INTERNAL_ERROR, "文件上传失败");
         }
+        String fileUrl = "/uploads/" + relativeDir + "/" + storedName;
+        String mediaType = mediaType(extension);
+        fileAssetService.record(originalName, fileUrl, mediaType, user == null ? null : user.id());
         return ApiResponse.ok(new FileUploadResponse(
                 originalName,
-                "/uploads/" + relativeDir + "/" + storedName,
-                mediaType(extension)
+                fileUrl,
+                mediaType
         ));
+    }
+
+    @GetMapping
+    public ApiResponse<List<FileAssetResponse>> latest() {
+        return ApiResponse.ok(fileAssetService.latest());
     }
 
     private String extension(String fileName) {

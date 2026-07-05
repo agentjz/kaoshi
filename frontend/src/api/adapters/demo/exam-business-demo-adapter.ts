@@ -2,7 +2,11 @@ import type { PageResult } from '../../admin'
 import type { ExamBusinessAdapter } from '../exam-business-adapter'
 import type {
   Exam,
+  ExamAttemptEvent,
   ExamPayload,
+  ExamReviewTask,
+  ExamResultPolicy,
+  ExamSecurityPolicy,
   ExamQuestion,
   ExamResultDetail,
   Question,
@@ -30,6 +34,57 @@ function paginate<T>(records: T[], page: number, size: number): PageResult<T> {
 function currentUser() {
   const state = currentDemoState()
   return state.users.find((user) => user.id === state.currentUserId) || state.users[0]
+}
+
+function event(state: ReturnType<typeof currentDemoState>, examId: number, action: string, reason: string | null, userId: number | null = null): ExamAttemptEvent {
+  const actor = currentUser()
+  const item: ExamAttemptEvent = {
+    id: nextId(state),
+    examId,
+    attemptId: null,
+    userId,
+    username: state.users.find((user) => user.id === userId)?.username || null,
+    actorUsername: actor?.username || null,
+    action,
+    reason,
+    createdAt: nowIso(),
+  }
+  state.examEvents[examId] = [item, ...(state.examEvents[examId] || [])]
+  return item
+}
+
+function defaultPolicy(examId: number): ExamResultPolicy {
+  return { examId, visibleToStudents: true, showAnswers: true, showAnalysis: true, releaseTime: null, updatedAt: null }
+}
+
+function defaultSecurityPolicy(examId: number): ExamSecurityPolicy {
+  return { examId, requireFullscreen: false, forbidCopyPaste: true, trackFocusLoss: true, maxFocusLossCount: 3, deviceCheckRequired: false, updatedAt: null }
+}
+
+function visiblePolicy(state: ReturnType<typeof currentDemoState>, examId: number) {
+  const policy = state.resultPolicies[examId] || defaultPolicy(examId)
+  return policy.visibleToStudents && (!policy.releaseTime || new Date(policy.releaseTime).getTime() <= Date.now())
+}
+
+function maskResultByPolicy(result: ExamResultDetail): ExamResultDetail {
+  const state = currentDemoState()
+  const policy = state.resultPolicies[result.examId] || defaultPolicy(result.examId)
+  const detail = clone(result)
+  if (!policy.showAnswers) {
+    detail.questions = detail.questions.map((question) => ({ ...question, correctLabels: [], correct: null }))
+  }
+  if (!policy.showAnalysis) {
+    detail.questions = detail.questions.map((question) => ({ ...question, analysis: null }))
+  }
+  return detail
+}
+
+function ensureExamAllowed(examId: number) {
+  const state = currentDemoState()
+  const roster = state.participants[examId] || []
+  if (roster.length > 0 && !roster.some((participant) => participant.userId === currentUser().id)) {
+    throw new Error('不在本场考试考生名册内')
+  }
 }
 
 function bankName(bankId: number) {
@@ -186,6 +241,23 @@ function toResultSummary(result: ExamResultDetail) {
   })
 }
 
+function reviewTaskFromResult(result: ExamResultDetail): ExamReviewTask {
+  const state = currentDemoState()
+  return {
+    id: nextId(state),
+    resultId: result.id,
+    examId: result.examId,
+    examTitle: result.examTitle,
+    reviewerId: null,
+    reviewerUsername: null,
+    status: 'PENDING',
+    studentName: result.userName || result.username || '考生',
+    assignedAt: null,
+    completedAt: null,
+    createdAt: nowIso(),
+  }
+}
+
 function questionFromPayload(id: number, payload: Parameters<ExamBusinessAdapter['createQuestion']>[0]): Question {
   return {
     id,
@@ -313,7 +385,21 @@ export const demoExamBusinessAdapter: ExamBusinessAdapter = {
     return makeTextBlob('试题导出.txt', currentDemoState().questions.map((question) => `${question.bankName},${question.stem}`).join('\n'))
   },
   async uploadFile(file) {
-    return { fileName: file.name, fileUrl: URL.createObjectURL(file), mediaType: mediaTypeFromName(file.name) }
+    const state = currentDemoState()
+    const asset = {
+      id: nextId(state),
+      originalName: file.name,
+      fileUrl: URL.createObjectURL(file),
+      mediaType: mediaTypeFromName(file.name),
+      usageType: 'QUESTION_OR_EXAM_ATTACHMENT',
+      uploadedBy: currentUser().username,
+      uploadedAt: nowIso(),
+    }
+    state.fileAssets.unshift(asset)
+    return { fileName: asset.originalName, fileUrl: asset.fileUrl, mediaType: asset.mediaType }
+  },
+  async fetchFileAssets() {
+    return clone(currentDemoState().fileAssets)
   },
   async fetchAdminExams(params) {
     const keyword = params.keyword?.trim().toLowerCase()
@@ -398,12 +484,192 @@ export const demoExamBusinessAdapter: ExamBusinessAdapter = {
     }
     return clone(result)
   },
+  async fetchExamParticipants(examId) {
+    return clone(currentDemoState().participants[examId] || [])
+  },
+  async replaceExamParticipants(examId, userIds) {
+    const state = currentDemoState()
+    state.participants[examId] = userIds.map((userId) => {
+      const user = state.users.find((item) => item.id === userId)
+      if (!user) {
+        throw new Error('用户不存在')
+      }
+      return {
+        userId,
+        username: user.username,
+        displayName: user.displayName,
+        departmentName: user.departmentName,
+        status: 'ASSIGNED' as const,
+        extraMinutes: state.participants[examId]?.find((item) => item.userId === userId)?.extraMinutes || 0,
+        extraAttempts: state.participants[examId]?.find((item) => item.userId === userId)?.extraAttempts || 0,
+        reason: state.participants[examId]?.find((item) => item.userId === userId)?.reason || null,
+        assignedAt: nowIso(),
+      }
+    })
+    event(state, examId, 'EXAM_PARTICIPANTS_REPLACED', `更新考生名册：${userIds.length} 人`)
+    return clone(state.participants[examId])
+  },
+  async updateExamAllowance(examId, userId, payload) {
+    const state = currentDemoState()
+    if (!state.participants[examId]?.some((item) => item.userId === userId)) {
+      await this.replaceExamParticipants(examId, [...(state.participants[examId] || []).map((item) => item.userId), userId])
+    }
+    const participant = state.participants[examId].find((item) => item.userId === userId)
+    if (!participant) {
+      throw new Error('考生不存在')
+    }
+    participant.extraMinutes = payload.extraMinutes
+    participant.extraAttempts = payload.extraAttempts
+    participant.reason = payload.reason
+    event(state, examId, 'EXAM_ALLOWANCE_UPDATED', payload.reason, userId)
+    return clone(participant)
+  },
+  async grantExamRetake(examId, userId, reason) {
+    const state = currentDemoState()
+    const participant = state.participants[examId]?.find((item) => item.userId === userId)
+    if (!participant) {
+      throw new Error('考生不存在')
+    }
+    participant.extraAttempts += 1
+    participant.reason = reason
+    event(state, examId, 'EXAM_RETAKE_GRANTED', reason, userId)
+    return clone(participant)
+  },
+  async fetchExamResultPolicy(examId) {
+    return clone(currentDemoState().resultPolicies[examId] || defaultPolicy(examId))
+  },
+  async updateExamResultPolicy(examId, payload) {
+    const state = currentDemoState()
+    state.resultPolicies[examId] = { examId, ...payload, updatedAt: nowIso() }
+    event(state, examId, 'EXAM_RESULT_POLICY_UPDATED', null)
+    return clone(state.resultPolicies[examId])
+  },
+  async fetchExamReport(examId) {
+    const state = currentDemoState()
+    const results = state.results.filter((result) => result.examId === examId)
+    const finals = results.filter((result) => result.gradingStatus === 'FINAL')
+    const scores = finals.map((result) => result.obtainedScore)
+    return {
+      examId,
+      participantCount: (state.participants[examId] || []).length || results.length,
+      submittedCount: results.length,
+      pendingReviewCount: results.filter((result) => result.gradingStatus === 'PENDING_REVIEW').length,
+      averageScore: scores.length ? Number((scores.reduce((sum, score) => sum + score, 0) / scores.length).toFixed(2)) : 0,
+      maxScore: scores.length ? Math.max(...scores) : 0,
+      minScore: scores.length ? Math.min(...scores) : 0,
+      passRate: results.length ? Number(((finals.filter((result) => result.passed).length / results.length) * 100).toFixed(2)) : 0,
+    }
+  },
+  async fetchExamEvents(examId) {
+    return clone(currentDemoState().examEvents[examId] || [])
+  },
+  async fetchExamSecurityPolicy(examId) {
+    return clone(currentDemoState().securityPolicies[examId] || defaultSecurityPolicy(examId))
+  },
+  async updateExamSecurityPolicy(examId, payload) {
+    const state = currentDemoState()
+    state.securityPolicies[examId] = { examId, ...payload, updatedAt: nowIso() }
+    event(state, examId, 'EXAM_SECURITY_POLICY_UPDATED', null)
+    return clone(state.securityPolicies[examId])
+  },
+  async fetchExamSecurityEvents(examId) {
+    return clone(currentDemoState().securityEvents[examId] || [])
+  },
+  async recordExamSecurityEvent(examId, payload) {
+    const state = currentDemoState()
+    const user = currentUser()
+    const item = {
+      id: nextId(state),
+      examId,
+      attemptId: payload.attemptId || null,
+      userId: user.id,
+      username: user.username,
+      eventType: payload.eventType,
+      severity: payload.severity || 'INFO',
+      detail: payload.detail || null,
+      occurredAt: nowIso(),
+    }
+    state.securityEvents[examId] = [item, ...(state.securityEvents[examId] || [])]
+  },
+  async fetchExamReviewRubrics(examId) {
+    return clone(currentDemoState().reviewRubrics[examId] || [])
+  },
+  async replaceExamReviewRubrics(examId, payload) {
+    const state = currentDemoState()
+    state.reviewRubrics[examId] = payload.map((item) => ({ id: nextId(state), examId, ...item }))
+    event(state, examId, 'EXAM_REVIEW_RUBRIC_UPDATED', `更新阅卷 rubric：${payload.length} 条`)
+    return clone(state.reviewRubrics[examId])
+  },
+  async fetchExamReviewTasks(examId) {
+    return clone(currentDemoState().reviewTasks[examId] || [])
+  },
+  async generateExamReviewTasks(examId) {
+    const state = currentDemoState()
+    const existing = state.reviewTasks[examId] || []
+    const created = state.results
+      .filter((result) => result.examId === examId && result.gradingStatus === 'PENDING_REVIEW' && !existing.some((task) => task.resultId === result.id))
+      .map((result) => reviewTaskFromResult(result))
+    state.reviewTasks[examId] = [...created, ...existing]
+    event(state, examId, 'EXAM_REVIEW_TASKS_GENERATED', `新增阅卷任务：${created.length} 条`)
+    return clone(state.reviewTasks[examId])
+  },
+  async claimExamReviewTask(examId, taskId) {
+    const task = currentDemoState().reviewTasks[examId]?.find((item) => item.id === taskId)
+    if (!task) {
+      throw new Error('阅卷任务不存在')
+    }
+    task.status = 'IN_PROGRESS'
+    task.reviewerId = currentUser().id
+    task.reviewerUsername = currentUser().username
+    task.assignedAt = task.assignedAt || nowIso()
+    return clone(currentDemoState().reviewTasks[examId])
+  },
+  async updateExamReviewTask(examId, taskId, status) {
+    const task = currentDemoState().reviewTasks[examId]?.find((item) => item.id === taskId)
+    if (!task) {
+      throw new Error('阅卷任务不存在')
+    }
+    task.status = status
+    task.completedAt = status === 'COMPLETED' ? nowIso() : task.completedAt
+    return clone(currentDemoState().reviewTasks[examId])
+  },
+  async fetchExamReviewRechecks(examId) {
+    return clone(currentDemoState().reviewRechecks[examId] || [])
+  },
+  async requestExamReviewRecheck(examId, taskId, reason) {
+    const state = currentDemoState()
+    const task = state.reviewTasks[examId]?.find((item) => item.id === taskId)
+    if (!task) {
+      throw new Error('阅卷任务不存在')
+    }
+    const item = { id: nextId(state), taskId, resultId: task.resultId, requestedBy: currentUser().username, status: 'REQUESTED' as const, reason, resolution: null, createdAt: nowIso(), resolvedAt: null }
+    state.reviewRechecks[examId] = [item, ...(state.reviewRechecks[examId] || [])]
+    return clone(state.reviewRechecks[examId])
+  },
+  async updateExamReviewRecheck(examId, recheckId, status, resolution) {
+    const item = currentDemoState().reviewRechecks[examId]?.find((recheck) => recheck.id === recheckId)
+    if (!item) {
+      throw new Error('复核记录不存在')
+    }
+    item.status = status
+    item.resolution = resolution
+    item.resolvedAt = nowIso()
+    return clone(currentDemoState().reviewRechecks[examId])
+  },
   async fetchExamTasks() {
-    return clone(currentDemoState().exams.filter((exam) => exam.status === 'PUBLISHED'))
+    const state = currentDemoState()
+    return clone(state.exams.filter((exam) => {
+      if (exam.status !== 'PUBLISHED') {
+        return false
+      }
+      const roster = state.participants[exam.id] || []
+      return roster.length === 0 || roster.some((participant) => participant.userId === currentUser().id)
+    }))
   },
   async startExam(examId) {
     const state = currentDemoState()
     const user = currentUser()
+    ensureExamAllowed(examId)
     const existing = state.attempts.find((attempt) => attempt.examId === examId && attempt.userId === user.id && attempt.status === 'IN_PROGRESS')
     if (existing) {
       return toSession(existing)
@@ -411,6 +677,11 @@ export const demoExamBusinessAdapter: ExamBusinessAdapter = {
     const exam = state.exams.find((item) => item.id === examId)
     if (!exam) {
       throw new Error('考试不存在')
+    }
+    const submittedCount = state.results.filter((result) => result.examId === examId && result.userId === user.id).length
+    const extraAttempts = state.participants[examId]?.find((item) => item.userId === user.id)?.extraAttempts || 0
+    if (exam.attemptLimit !== null && submittedCount >= exam.attemptLimit + extraAttempts) {
+      throw new Error('已达到本场考试可考次数')
     }
     const attempt = { id: nextId(state), examId, userId: user.id, status: 'IN_PROGRESS' as const, startedAt: nowIso(), questions: buildSessionQuestions(state, exam) }
     state.attempts.push(attempt)
@@ -462,14 +733,16 @@ export const demoExamBusinessAdapter: ExamBusinessAdapter = {
   },
   async fetchMyExamResults() {
     const user = currentUser()
-    return currentDemoState().results.filter((result) => result.userId === user.id).map(toResultSummary)
+    const state = currentDemoState()
+    return state.results.filter((result) => result.userId === user.id && visiblePolicy(state, result.examId)).map(toResultSummary)
   },
   async fetchMyExamResultDetail(resultId) {
     const user = currentUser()
-    const result = currentDemoState().results.find((item) => item.id === resultId && item.userId === user.id)
+    const state = currentDemoState()
+    const result = state.results.find((item) => item.id === resultId && item.userId === user.id && visiblePolicy(state, item.examId))
     if (!result) {
       throw new Error('成绩不存在')
     }
-    return clone(result)
+    return maskResultByPolicy(result)
   },
 }

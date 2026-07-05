@@ -1,10 +1,20 @@
 import type { ExcelImportResult } from '../admin'
 import type {
   Exam,
+  ExamAttemptEvent,
+  ExamParticipant,
   ExamPayload,
+  ExamReport,
+  ExamReviewRecheck,
+  ExamReviewRubric,
+  ExamReviewTask,
   ExamResult,
   ExamResultDetail,
+  ExamResultPolicy,
+  ExamSecurityEvent,
+  ExamSecurityPolicy,
   ExamSession,
+  FileAsset,
   NamedCategory,
   PageResult,
   Question,
@@ -31,6 +41,7 @@ export interface ExamBusinessAdapter {
   importQuestions(file: File): Promise<ExcelImportResult>
   downloadQuestionExport(): Promise<Blob>
   uploadFile(file: File): Promise<QuestionAttachmentPayload>
+  fetchFileAssets(): Promise<FileAsset[]>
   fetchAdminExams(params: { page: number; size: number; keyword?: string }): Promise<PageResult<Exam>>
   fetchAdminExamDetail(id: number): Promise<Exam>
   createExam(payload: ExamPayload): Promise<Exam>
@@ -43,6 +54,27 @@ export interface ExamBusinessAdapter {
   deleteExam(id: number): Promise<void>
   fetchAdminResults(params?: { examId?: number }): Promise<ExamResult[]>
   fetchAdminResultDetail(resultId: number): Promise<ExamResultDetail>
+  fetchExamParticipants(examId: number): Promise<ExamParticipant[]>
+  replaceExamParticipants(examId: number, userIds: number[]): Promise<ExamParticipant[]>
+  updateExamAllowance(examId: number, userId: number, payload: { extraMinutes: number; extraAttempts: number; reason: string }): Promise<ExamParticipant>
+  grantExamRetake(examId: number, userId: number, reason: string): Promise<ExamParticipant>
+  fetchExamResultPolicy(examId: number): Promise<ExamResultPolicy>
+  updateExamResultPolicy(examId: number, payload: { visibleToStudents: boolean; showAnswers: boolean; showAnalysis: boolean; releaseTime: string | null }): Promise<ExamResultPolicy>
+  fetchExamReport(examId: number): Promise<ExamReport>
+  fetchExamEvents(examId: number): Promise<ExamAttemptEvent[]>
+  fetchExamSecurityPolicy(examId: number): Promise<ExamSecurityPolicy>
+  updateExamSecurityPolicy(examId: number, payload: Omit<ExamSecurityPolicy, 'examId' | 'updatedAt'>): Promise<ExamSecurityPolicy>
+  fetchExamSecurityEvents(examId: number): Promise<ExamSecurityEvent[]>
+  recordExamSecurityEvent(examId: number, payload: { attemptId?: number | null; eventType: string; severity?: string; detail?: string }): Promise<void>
+  fetchExamReviewRubrics(examId: number): Promise<ExamReviewRubric[]>
+  replaceExamReviewRubrics(examId: number, payload: Array<{ title: string; description: string; maxScore: number; sortOrder: number }>): Promise<ExamReviewRubric[]>
+  fetchExamReviewTasks(examId: number): Promise<ExamReviewTask[]>
+  generateExamReviewTasks(examId: number): Promise<ExamReviewTask[]>
+  claimExamReviewTask(examId: number, taskId: number): Promise<ExamReviewTask[]>
+  updateExamReviewTask(examId: number, taskId: number, status: ExamReviewTask['status']): Promise<ExamReviewTask[]>
+  fetchExamReviewRechecks(examId: number): Promise<ExamReviewRecheck[]>
+  requestExamReviewRecheck(examId: number, taskId: number, reason: string): Promise<ExamReviewRecheck[]>
+  updateExamReviewRecheck(examId: number, recheckId: number, status: ExamReviewRecheck['status'], resolution: string): Promise<ExamReviewRecheck[]>
   fetchExamTasks(): Promise<Exam[]>
   startExam(examId: number): Promise<ExamSession>
   saveExamAnswers(examId: number, answers: Array<{ questionId: number; selectedLabels?: string[]; answerText?: string }>): Promise<ExamSession>

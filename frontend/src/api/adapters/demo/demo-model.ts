@@ -4,20 +4,44 @@ import type {
   AdminRole,
   AdminUser,
   Department,
+  ExternalIntegration,
+  ExternalIntegrationEvent,
+  PlatformNotification,
 } from '../../admin'
 import type {
   Exam,
+  ExamAttemptEvent,
+  ExamParticipant,
+  ExamReviewRecheck,
+  ExamReviewRubric,
+  ExamReviewTask,
+  ExamResultPolicy,
+  ExamSecurityEvent,
+  ExamSecurityPolicy,
+  FileAsset,
   ExamQuestion,
   ExamResultDetail,
   Question,
   QuestionBank,
 } from '../../exam-business-types'
-import type { CurrentUser } from '../../types'
+import type { CurrentUser, MailStatus, RegistrationSettings } from '../../types'
 import { isManualReviewType } from '@/utils/question-types'
 
 export interface DemoUser extends AdminUser {
   password: string
   roleIds: number[]
+  email: string
+  emailVerified: boolean
+  registrationSource: 'ADMIN_CREATED' | 'IMPORT' | 'SELF_REGISTERED'
+  approvalStatus: 'APPROVED' | 'PENDING' | 'REJECTED'
+}
+
+export interface DemoVerificationCode {
+  email: string
+  purpose: 'REGISTER' | 'RESET_PASSWORD'
+  code: string
+  expiresAt: string
+  consumed: boolean
 }
 
 export interface DemoAttempt {
@@ -36,6 +60,9 @@ export interface DemoState {
   roles: AdminRole[]
   permissions: AdminPermission[]
   menus: AdminMenu[]
+  verificationCodes: DemoVerificationCode[]
+  registrationSettings: RegistrationSettings
+  mailStatus: MailStatus
   categories: Array<{ id: number; code: string; name: string; description: string | null; sortOrder: number }>
   banks: QuestionBank[]
   questions: Question[]
@@ -43,6 +70,18 @@ export interface DemoState {
   exams: Exam[]
   attempts: DemoAttempt[]
   results: ExamResultDetail[]
+  participants: Record<number, ExamParticipant[]>
+  resultPolicies: Record<number, ExamResultPolicy>
+  examEvents: Record<number, ExamAttemptEvent[]>
+  securityPolicies: Record<number, ExamSecurityPolicy>
+  securityEvents: Record<number, ExamSecurityEvent[]>
+  reviewRubrics: Record<number, ExamReviewRubric[]>
+  reviewTasks: Record<number, ExamReviewTask[]>
+  reviewRechecks: Record<number, ExamReviewRecheck[]>
+  notifications: PlatformNotification[]
+  externalIntegrations: ExternalIntegration[]
+  externalIntegrationEvents: ExternalIntegrationEvent[]
+  fileAssets: FileAsset[]
   nextId: number
 }
 

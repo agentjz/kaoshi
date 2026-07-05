@@ -7,6 +7,8 @@ import com.kaoshi.exam.dto.ExamResponse;
 import com.kaoshi.exam.dto.ExamResultResponse;
 import com.kaoshi.exam.dto.ExamSessionResponse;
 import com.kaoshi.exam.dto.ExamSubmitRequest;
+import com.kaoshi.exam.governance.ExamGovernanceService;
+import com.kaoshi.exam.governance.dto.ExamSecurityEventRequest;
 import com.kaoshi.security.AuthUser;
 import jakarta.validation.Valid;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -25,9 +27,11 @@ import java.util.List;
 @PreAuthorize("hasAuthority('exam:take') or hasAuthority('system:admin')")
 public class ExamPortalController {
     private final ExamService examService;
+    private final ExamGovernanceService governanceService;
 
-    public ExamPortalController(ExamService examService) {
+    public ExamPortalController(ExamService examService, ExamGovernanceService governanceService) {
         this.examService = examService;
+        this.governanceService = governanceService;
     }
 
     @GetMapping("/tasks")
@@ -59,6 +63,16 @@ public class ExamPortalController {
             @Valid @RequestBody ExamAnswerSnapshotRequest request
     ) {
         return ApiResponse.ok(examService.saveAnswerSnapshot(examId, user.id(), request));
+    }
+
+    @PostMapping("/{examId}/security-events")
+    public ApiResponse<Void> recordSecurityEvent(
+            @PathVariable Long examId,
+            @AuthenticationPrincipal AuthUser user,
+            @Valid @RequestBody ExamSecurityEventRequest request
+    ) {
+        governanceService.recordSecurityEvent(examId, user.id(), request);
+        return ApiResponse.ok(null);
     }
 
     @GetMapping("/results")

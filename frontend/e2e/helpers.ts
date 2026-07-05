@@ -8,13 +8,14 @@ export async function login(page: Page) {
       .toBeTruthy()
     return
   }
-  await expect(page.getByLabel('账号')).toBeVisible()
-  await page.getByLabel('账号').fill('admin')
-  await page.getByLabel('密码').fill('password')
+  const loginForm = page.locator('.auth-card form').first()
+  await expect(loginForm.getByLabel('账号', { exact: true })).toBeVisible()
+  await loginForm.getByLabel('账号', { exact: true }).fill('admin')
+  await loginForm.getByLabel('密码', { exact: true }).fill('password')
   const loginResponse = page.waitForResponse((response) => {
     return response.url().includes('/api/auth/login') && response.request().method() === 'POST'
   })
-  await page.getByRole('button', { name: '进入平台' }).click()
+  await loginForm.getByRole('button', { name: '进入平台' }).click()
   await expect((await loginResponse).ok()).toBe(true)
   await expect(page).toHaveURL(/\/dashboard/)
   await expect(page.getByRole('menuitem', { name: '角色管理' })).toBeVisible()

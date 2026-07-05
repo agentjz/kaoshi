@@ -6,11 +6,11 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
-final class ExamRowValues {
+public final class ExamRowValues {
     private ExamRowValues() {
     }
 
-    static Object value(Map<String, Object> row, String key) {
+    public static Object value(Map<String, Object> row, String key) {
         if (row.containsKey(key)) {
             return row.get(key);
         }
@@ -29,26 +29,26 @@ final class ExamRowValues {
         return row.get(key.toLowerCase());
     }
 
-    static Long longValue(Object value) {
+    public static Long longValue(Object value) {
         return ((Number) value).longValue();
     }
 
-    static Integer intValue(Object value) {
+    public static Integer intValue(Object value) {
         return ((Number) value).intValue();
     }
 
-    static BigDecimal decimalValue(Object value) {
+    public static BigDecimal decimalValue(Object value) {
         if (value instanceof BigDecimal decimal) {
             return decimal;
         }
         return new BigDecimal(value.toString());
     }
 
-    static String stringValue(Object value) {
+    public static String stringValue(Object value) {
         return value == null ? null : value.toString();
     }
 
-    static Boolean booleanValue(Object value) {
+    public static Boolean booleanValue(Object value) {
         if (value == null) {
             return null;
         }
@@ -61,7 +61,7 @@ final class ExamRowValues {
         return Boolean.parseBoolean(value.toString());
     }
 
-    static LocalDateTime dateTimeValue(Object value) {
+    public static LocalDateTime dateTimeValue(Object value) {
         if (value instanceof LocalDateTime dateTime) {
             return dateTime;
         }
@@ -71,11 +71,11 @@ final class ExamRowValues {
         return LocalDateTime.parse(value.toString());
     }
 
-    static LocalDateTime dateTimeValueOrNull(Object value) {
+    public static LocalDateTime dateTimeValueOrNull(Object value) {
         return value == null ? null : dateTimeValue(value);
     }
 
-    static List<String> normalizedLabels(List<String> labels) {
+    public static List<String> normalizedLabels(List<String> labels) {
         if (labels == null) {
             return List.of();
         }
@@ -88,7 +88,7 @@ final class ExamRowValues {
                 .toList();
     }
 
-    static List<String> splitLabels(String labels) {
+    public static List<String> splitLabels(String labels) {
         if (labels == null || labels.isBlank()) {
             return List.of();
         }

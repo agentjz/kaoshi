@@ -2,9 +2,9 @@ import { expect, test } from '@playwright/test'
 
 async function loginDemo(page: import('@playwright/test').Page) {
   await page.goto('/CET-4/login', { waitUntil: 'domcontentloaded' })
-  await page.getByLabel('账号').fill('admin')
-  await page.getByLabel('密码').fill('password')
-  await page.getByRole('button', { name: '进入平台' }).click()
+  await page.getByLabel('账号').first().fill('admin')
+  await page.getByLabel('密码').first().fill('password')
+  await page.getByRole('button', { name: '进入平台' }).first().click()
   await expect(page).toHaveURL(/\/CET-4\/dashboard/)
   await expect(page.getByRole('menuitem', { name: '题库管理' })).toBeVisible()
   await expect.poll(() => page.evaluate(() => window.localStorage.getItem('kaoshi.accessToken'))).toBeNull()

@@ -34,6 +34,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '部门管理' },
       },
       {
+        path: 'sys/settings',
+        name: 'admin-platform-settings',
+        component: () => import('@/views/admin/settings/PlatformSettingsView.vue'),
+        meta: { title: '平台设置' },
+      },
+      {
         path: 'exam/repo',
         name: 'admin-question-banks',
         component: () => import('@/views/admin/question-banks/QuestionBanksView.vue'),

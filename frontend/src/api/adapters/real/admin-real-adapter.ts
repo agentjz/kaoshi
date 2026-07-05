@@ -6,10 +6,14 @@ import type {
   AdminRole,
   AdminUser,
   Department,
+  ExternalIntegration,
+  ExternalIntegrationEvent,
   ExcelImportResult,
   PageResult,
+  PlatformNotification,
+  RegistrationRequest,
 } from '../../admin'
-import type { ApiResponse } from '../../types'
+import type { ApiResponse, MailStatus, RegistrationSettings } from '../../types'
 
 export const realAdminAdapter: AdminAdapter = {
   async fetchAdminUsers(params) {
@@ -76,5 +80,59 @@ export const realAdminAdapter: AdminAdapter = {
   },
   async deleteDepartment(id) {
     await apiClient.delete<ApiResponse<void>>(`/api/admin/departments/${id}`)
+  },
+  async fetchRegistrationSettings() {
+    const response = await apiClient.get<ApiResponse<RegistrationSettings>>('/api/admin/auth/registration-settings')
+    return response.data.data
+  },
+  async updateRegistrationSettings(payload) {
+    const response = await apiClient.put<ApiResponse<RegistrationSettings>>('/api/admin/auth/registration-settings', payload)
+    return response.data.data
+  },
+  async fetchMailStatus() {
+    const response = await apiClient.get<ApiResponse<MailStatus>>('/api/admin/auth/mail-status')
+    return response.data.data
+  },
+  async sendTestMail(email) {
+    await apiClient.post<ApiResponse<void>>('/api/admin/auth/test-mail', { email })
+  },
+  async fetchRegistrationRequests() {
+    const response = await apiClient.get<ApiResponse<RegistrationRequest[]>>('/api/admin/auth/registration-requests')
+    return response.data.data
+  },
+  async approveRegistrationRequest(userId) {
+    const response = await apiClient.post<ApiResponse<RegistrationRequest>>(`/api/admin/auth/registration-requests/${userId}/approve`)
+    return response.data.data
+  },
+  async rejectRegistrationRequest(userId, reason) {
+    const response = await apiClient.post<ApiResponse<RegistrationRequest>>(`/api/admin/auth/registration-requests/${userId}/reject`, { reason })
+    return response.data.data
+  },
+  async fetchPlatformNotifications() {
+    const response = await apiClient.get<ApiResponse<PlatformNotification[]>>('/api/admin/platform/notifications')
+    return response.data.data
+  },
+  async markPlatformNotificationRead(id) {
+    await apiClient.post<ApiResponse<void>>(`/api/admin/platform/notifications/${id}/read`)
+  },
+  async fetchExternalIntegrations() {
+    const response = await apiClient.get<ApiResponse<ExternalIntegration[]>>('/api/admin/platform/integrations')
+    return response.data.data
+  },
+  async createExternalIntegration(payload) {
+    const response = await apiClient.post<ApiResponse<ExternalIntegration>>('/api/admin/platform/integrations', payload)
+    return response.data.data
+  },
+  async updateExternalIntegration(id, payload) {
+    const response = await apiClient.put<ApiResponse<ExternalIntegration>>(`/api/admin/platform/integrations/${id}`, payload)
+    return response.data.data
+  },
+  async testExternalIntegration(id) {
+    const response = await apiClient.post<ApiResponse<ExternalIntegrationEvent[]>>(`/api/admin/platform/integrations/${id}/test`)
+    return response.data.data
+  },
+  async fetchExternalIntegrationEvents() {
+    const response = await apiClient.get<ApiResponse<ExternalIntegrationEvent[]>>('/api/admin/platform/integration-events')
+    return response.data.data
   },
 }

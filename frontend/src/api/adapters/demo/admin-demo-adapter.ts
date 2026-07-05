@@ -1,5 +1,5 @@
 import type { AdminAdapter } from '../admin-adapter'
-import type { AdminRole, AdminUser, Department } from '../../admin'
+import type { AdminRole, AdminUser, Department, RegistrationRequest } from '../../admin'
 import { clone, currentDemoState, nextId, nowIso } from './demo-store'
 
 function paginate<T>(records: T[], page: number, size: number) {
@@ -71,6 +71,10 @@ export const demoAdminAdapter: AdminAdapter = {
       departmentId: payload.departmentId,
       departmentName: departmentName(payload.departmentId),
       username: payload.username,
+      email: `${payload.username}@example.com`,
+      emailVerified: true,
+      registrationSource: 'ADMIN_CREATED' as const,
+      approvalStatus: 'APPROVED' as const,
       displayName: payload.displayName,
       status: 'ACTIVE' as const,
       roles: roleCodes(payload.roleIds),
@@ -177,4 +181,132 @@ export const demoAdminAdapter: AdminAdapter = {
     }
     state.departments = rebuildDepartmentTree(flat.filter((department) => department.id !== id))
   },
+  async fetchRegistrationSettings() {
+    return clone(currentDemoState().registrationSettings)
+  },
+  async updateRegistrationSettings(payload) {
+    currentDemoState().registrationSettings = clone(payload)
+    return clone(payload)
+  },
+  async fetchMailStatus() {
+    return clone(currentDemoState().mailStatus)
+  },
+  async sendTestMail() {
+    return undefined
+  },
+  async fetchRegistrationRequests() {
+    return currentDemoState().users
+      .filter((user) => user.registrationSource === 'SELF_REGISTERED' && user.approvalStatus === 'PENDING')
+      .map(toRegistrationRequest)
+  },
+  async approveRegistrationRequest(userId) {
+    const user = currentDemoState().users.find((item) => item.id === userId)
+    if (!user) {
+      throw new Error('注册申请不存在')
+    }
+    user.approvalStatus = 'APPROVED'
+    user.updatedAt = nowIso()
+    return toRegistrationRequest(user)
+  },
+  async rejectRegistrationRequest(userId) {
+    const user = currentDemoState().users.find((item) => item.id === userId)
+    if (!user) {
+      throw new Error('注册申请不存在')
+    }
+    user.approvalStatus = 'REJECTED'
+    user.status = 'DISABLED'
+    user.updatedAt = nowIso()
+    return toRegistrationRequest(user)
+  },
+  async fetchPlatformNotifications() {
+    return clone(currentDemoState().notifications)
+  },
+  async markPlatformNotificationRead(id) {
+    const notification = currentDemoState().notifications.find((item) => item.id === id)
+    if (notification) {
+      notification.read = true
+    }
+  },
+  async fetchExternalIntegrations() {
+    return clone(currentDemoState().externalIntegrations)
+  },
+  async createExternalIntegration(payload) {
+    const state = currentDemoState()
+    const integration = {
+      id: nextId(state),
+      name: payload.name,
+      integrationType: payload.integrationType,
+      endpointUrl: payload.endpointUrl,
+      secretMask: maskSecret(payload.secretMask),
+      enabled: payload.enabled,
+      updatedAt: nowIso(),
+    }
+    state.externalIntegrations.unshift(integration)
+    state.notifications.unshift({
+      id: nextId(state),
+      recipientUserId: null,
+      title: '外部集成已创建',
+      content: `已创建外部集成：${payload.name}`,
+      category: 'INTEGRATION',
+      read: false,
+      createdAt: nowIso(),
+    })
+    return clone(integration)
+  },
+  async updateExternalIntegration(id, payload) {
+    const integration = currentDemoState().externalIntegrations.find((item) => item.id === id)
+    if (!integration) {
+      throw new Error('外部集成不存在')
+    }
+    Object.assign(integration, {
+      name: payload.name,
+      integrationType: payload.integrationType,
+      endpointUrl: payload.endpointUrl,
+      secretMask: maskSecret(payload.secretMask),
+      enabled: payload.enabled,
+      updatedAt: nowIso(),
+    })
+    return clone(integration)
+  },
+  async testExternalIntegration(id) {
+    const state = currentDemoState()
+    if (!state.externalIntegrations.some((item) => item.id === id)) {
+      throw new Error('外部集成不存在')
+    }
+    state.externalIntegrationEvents.unshift({
+      id: nextId(state),
+      integrationId: id,
+      eventType: 'TEST',
+      status: 'QUEUED',
+      payloadSummary: '演示环境测试事件',
+      errorMessage: null,
+      createdAt: nowIso(),
+    })
+    return clone(state.externalIntegrationEvents)
+  },
+  async fetchExternalIntegrationEvents() {
+    return clone(currentDemoState().externalIntegrationEvents)
+  },
+}
+
+function toRegistrationRequest(user: AdminUser & { email: string; approvalStatus: RegistrationRequest['approvalStatus'] }): RegistrationRequest {
+  return clone({
+    userId: user.id,
+    username: user.username,
+    displayName: user.displayName,
+    email: user.email,
+    status: user.status,
+    approvalStatus: user.approvalStatus,
+    registeredAt: user.createdAt,
+  })
+}
+
+function maskSecret(value: string) {
+  if (!value) {
+    return null
+  }
+  if (value.startsWith('****')) {
+    return value
+  }
+  return `****${value.slice(-4)}`
 }

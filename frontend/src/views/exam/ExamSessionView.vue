@@ -108,7 +108,7 @@ import ExamAnswerSheetPanel from '@/components/exam/session/ExamAnswerSheetPanel
 import ExamMaterialViewer from '@/components/exam/session/ExamMaterialViewer.vue'
 import ExamQuestionPanel from '@/components/exam/session/ExamQuestionPanel.vue'
 import { useAnswerSnapshotSaver } from '@/composables/use-answer-snapshot-saver'
-import { saveExamAnswers, startExam, submitExam, type ExamQuestion, type ExamSession } from '@/api/exam-business'
+import { recordExamSecurityEvent, saveExamAnswers, startExam, submitExam, type ExamQuestion, type ExamSession } from '@/api/exam-business'
 import {
   buildAnswerCardGroups,
   buildSubmitAnswers,
@@ -132,6 +132,7 @@ const submitted = ref(false)
 const remainingSeconds = ref(0)
 const currentIndex = ref(0)
 let countdownTimer: number | undefined
+const securityEventKeys = new Set<string>()
 
 const multipleAnswers = reactive<MultipleAnswerMap>({})
 const singleAnswers = reactive<SingleAnswerMap>({})
@@ -160,6 +161,10 @@ const groupedQuestions = computed(() => buildAnswerCardGroups(session.value?.exa
 
 onMounted(() => {
   window.addEventListener('beforeunload', preventUnload)
+  window.addEventListener('blur', reportFocusLoss)
+  document.addEventListener('copy', reportCopy)
+  document.addEventListener('paste', reportPaste)
+  document.addEventListener('visibilitychange', reportVisibilityChange)
   void beginExam()
 })
 
@@ -167,6 +172,10 @@ onBeforeUnmount(() => {
   stopCountdown()
   answerSaver.clearScheduledSave()
   window.removeEventListener('beforeunload', preventUnload)
+  window.removeEventListener('blur', reportFocusLoss)
+  document.removeEventListener('copy', reportCopy)
+  document.removeEventListener('paste', reportPaste)
+  document.removeEventListener('visibilitychange', reportVisibilityChange)
 })
 
 onBeforeRouteLeave(async () => {
@@ -335,6 +344,45 @@ function preventUnload(event: BeforeUnloadEvent) {
   }
   event.preventDefault()
   event.returnValue = ''
+}
+
+function reportFocusLoss() {
+  void reportSecurityEvent('FOCUS_LOST', 'WARN', '考试页面失去焦点')
+}
+
+function reportVisibilityChange() {
+  if (document.hidden) {
+    void reportSecurityEvent('PAGE_HIDDEN', 'WARN', '考试页面进入后台')
+  }
+}
+
+function reportCopy() {
+  void reportSecurityEvent('COPY', 'WARN', '考试页面触发复制操作')
+}
+
+function reportPaste() {
+  void reportSecurityEvent('PASTE', 'WARN', '考试页面触发粘贴操作')
+}
+
+async function reportSecurityEvent(eventType: string, severity: string, detail: string) {
+  if (!session.value || submitted.value) {
+    return
+  }
+  const throttleKey = `${eventType}:${Math.floor(Date.now() / 5000)}`
+  if (securityEventKeys.has(throttleKey)) {
+    return
+  }
+  securityEventKeys.add(throttleKey)
+  try {
+    await recordExamSecurityEvent(session.value.examId, {
+      attemptId: session.value.attemptId,
+      eventType,
+      severity,
+      detail,
+    })
+  } catch {
+    // 安全事件上报失败不能阻断作答保存和提交。
+  }
 }
 
 </script>

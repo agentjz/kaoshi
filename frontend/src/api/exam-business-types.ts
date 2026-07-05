@@ -274,3 +274,114 @@ export interface ExamResultQuestion {
 export interface ExamResultDetail extends ExamResult {
   questions: ExamResultQuestion[]
 }
+
+export interface ExamParticipant {
+  userId: number
+  username: string
+  displayName: string
+  departmentName: string | null
+  status: 'ASSIGNED'
+  extraMinutes: number
+  extraAttempts: number
+  reason: string | null
+  assignedAt: string
+}
+
+export interface ExamResultPolicy {
+  examId: number
+  visibleToStudents: boolean
+  showAnswers: boolean
+  showAnalysis: boolean
+  releaseTime: string | null
+  updatedAt: string | null
+}
+
+export interface ExamReport {
+  examId: number
+  participantCount: number
+  submittedCount: number
+  pendingReviewCount: number
+  averageScore: number
+  maxScore: number
+  minScore: number
+  passRate: number
+}
+
+export interface ExamAttemptEvent {
+  id: number
+  examId: number
+  attemptId: number | null
+  userId: number | null
+  username: string | null
+  actorUsername: string | null
+  action: string
+  reason: string | null
+  createdAt: string
+}
+
+export interface FileAsset {
+  id: number
+  originalName: string
+  fileUrl: string
+  mediaType: QuestionAttachmentPayload['mediaType']
+  usageType: string
+  uploadedBy: string | null
+  uploadedAt: string
+}
+
+export interface ExamSecurityPolicy {
+  examId: number
+  requireFullscreen: boolean
+  forbidCopyPaste: boolean
+  trackFocusLoss: boolean
+  maxFocusLossCount: number
+  deviceCheckRequired: boolean
+  updatedAt: string | null
+}
+
+export interface ExamSecurityEvent {
+  id: number
+  examId: number
+  attemptId: number | null
+  userId: number
+  username: string | null
+  eventType: string
+  severity: string
+  detail: string | null
+  occurredAt: string
+}
+
+export interface ExamReviewRubric {
+  id: number
+  examId: number
+  title: string
+  description: string | null
+  maxScore: number
+  sortOrder: number
+}
+
+export interface ExamReviewTask {
+  id: number
+  resultId: number
+  examId: number
+  examTitle: string
+  reviewerId: number | null
+  reviewerUsername: string | null
+  status: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED'
+  studentName: string
+  assignedAt: string | null
+  completedAt: string | null
+  createdAt: string
+}
+
+export interface ExamReviewRecheck {
+  id: number
+  taskId: number
+  resultId: number
+  requestedBy: string
+  status: 'REQUESTED' | 'APPROVED' | 'REJECTED' | 'RESOLVED'
+  reason: string | null
+  resolution: string | null
+  createdAt: string
+  resolvedAt: string | null
+}

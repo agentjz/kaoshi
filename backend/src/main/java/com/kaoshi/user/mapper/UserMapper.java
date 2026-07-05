@@ -2,6 +2,7 @@ package com.kaoshi.user.mapper;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.kaoshi.user.domain.UserAccount;
+import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
@@ -13,6 +14,21 @@ import java.util.Optional;
 public interface UserMapper extends BaseMapper<UserAccount> {
     @Select("select * from users where username = #{username} and deleted_at is null")
     Optional<UserAccount> findByUsername(@Param("username") String username);
+
+    @Select("select * from users where email = #{email} and deleted_at is null")
+    Optional<UserAccount> findByEmail(@Param("email") String email);
+
+    @Select("select count(*) from users where username = #{username} and deleted_at is null")
+    long countByUsername(@Param("username") String username);
+
+    @Select("select count(*) from users where email = #{email} and deleted_at is null")
+    long countByEmail(@Param("email") String email);
+
+    @Select("select id from roles where code = #{code}")
+    Long findRoleIdByCode(@Param("code") String code);
+
+    @Insert("insert into user_roles (user_id, role_id) values (#{userId}, #{roleId})")
+    void insertUserRole(@Param("userId") Long userId, @Param("roleId") Long roleId);
 
     @Select("""
             select r.code

@@ -207,6 +207,50 @@ test.describe('考试管理', () => {
     expect(consoleIssues).toEqual([])
   })
 
+  test('考试治理抽屉展示名册、成绩策略、报表、事件和文件资产', async ({ page }) => {
+    const consoleIssues = collectConsoleIssues(page)
+    await login(page)
+    const token = await page.evaluate(() => window.localStorage.getItem('kaoshi.accessToken'))
+    const headers = { Authorization: `Bearer ${token}` }
+    const securityEventResponse = await page.request.post('/api/exam/1/security-events', {
+      headers,
+      data: { eventType: 'FOCUS_LOST', severity: 'LOW', detail: 'Playwright 治理验收事件' },
+    })
+    expect(securityEventResponse.ok()).toBeTruthy()
+
+    await page.locator('li.el-menu-item').filter({ hasText: /^考试管理$/ }).click()
+    await page.getByPlaceholder('搜索考试名称').fill(CET4_EXAM)
+    await page.getByRole('button', { name: '搜索' }).click()
+    await page.getByRole('row').filter({ hasText: CET4_EXAM }).getByRole('button', { name: '治理' }).click()
+    const drawer = page.getByRole('dialog', { name: new RegExp(`考试治理 - ${CET4_EXAM}`) })
+    await expect(drawer).toBeVisible()
+    await expect(drawer).toContainText('成绩发布策略')
+    await expect(drawer).toContainText('考生名册')
+    await expect(drawer).toContainText('治理事件')
+    await expect(drawer).toContainText('安全策略')
+    await expect(drawer).toContainText('阅卷 rubric')
+    await expect(drawer).toContainText('阅卷任务与复核')
+    await expect(drawer).toContainText('安全事件')
+    await expect(drawer).toContainText('Playwright 治理验收事件')
+    const resultPolicySection = drawer.locator('.governance-section').filter({ hasText: '成绩发布策略' })
+    await resultPolicySection.getByRole('button', { name: '保存策略' }).click()
+    await expect(page.getByText('成绩发布策略已保存')).toBeVisible()
+    await expect(drawer.getByText('EXAM_RESULT_POLICY_UPDATED')).toBeVisible()
+    const securitySection = drawer.locator('.governance-section').filter({ hasText: '安全策略' })
+    await securitySection.getByRole('button', { name: '保存策略' }).click()
+    await expect(page.getByText('安全策略已保存')).toBeVisible()
+    const rubricSection = drawer.locator('.governance-section').filter({ hasText: '阅卷 rubric' })
+    await expect(rubricSection.locator('input').first()).toHaveValue('内容完整')
+    await rubricSection.getByRole('button', { name: '保存 rubric' }).click()
+    await expect(page.getByText('阅卷 rubric 已保存')).toBeVisible()
+    const reviewSection = drawer.locator('.governance-section').filter({ hasText: '阅卷任务与复核' })
+    await reviewSection.getByRole('button', { name: '生成任务' }).click()
+    await expect(page.getByText('阅卷任务已生成')).toBeVisible()
+    await page.keyboard.press('Escape')
+
+    expect(consoleIssues).toEqual([])
+  })
+
   test('管理端支持通过 UI 创建和发布答题卡试卷', async ({ page }) => {
     const consoleIssues = collectConsoleIssues(page)
     await login(page)

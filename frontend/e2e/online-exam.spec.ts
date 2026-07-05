@@ -7,8 +7,33 @@ const ANSWER_SHEET_EXAM = '答题卡试卷演示'
 const CET4_AUDIO = '2023-03-cet4-listening.mp3'
 
 test.describe('在线考试', () => {
+  function exactText(value: string) {
+    return new RegExp(`^${value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`)
+  }
+
   function cet4ExamRow(page: Page) {
     return page.getByRole('row').filter({ hasText: CET4_EXAM })
+  }
+
+  function adminExamRow(page: Page, title: string) {
+    return page.getByRole('row').filter({
+      has: page.locator('.entity-name').filter({ hasText: exactText(title) }),
+    })
+  }
+
+  async function searchAdminExam(page: Page, title: string) {
+    await page.getByPlaceholder('搜索考试名称').fill(title)
+    await page.getByRole('button', { name: '搜索' }).click()
+    await expect(adminExamRow(page, title)).toHaveCount(1)
+    await expect(adminExamRow(page, title)).toBeVisible()
+  }
+
+  async function openAdminResultDrawer(page: Page, title: string) {
+    await searchAdminExam(page, title)
+    await adminExamRow(page, title).getByRole('button', { name: '成绩' }).click()
+    const drawer = page.getByRole('dialog', { name: new RegExp(`${title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} - 成绩`) })
+    await expect(drawer).toBeVisible()
+    return drawer
   }
 
   test('考试中心支持进入 CET4 准备页并返回', async ({ page }) => {
@@ -26,6 +51,7 @@ test.describe('在线考试', () => {
   })
 
   test('在线作答支持写作保存读回、音频题作答、提交待阅卷和人工阅卷锁定', async ({ page }) => {
+    test.setTimeout(120_000)
     const consoleIssues = collectConsoleIssues(page)
     await login(page)
 
@@ -80,11 +106,7 @@ test.describe('在线考试', () => {
 
     await page.locator('li.el-menu-item').filter({ hasText: /^考试管理$/ }).click()
     await expect(page.locator('.admin-page__header h1', { hasText: '考试管理' })).toBeVisible()
-    await page.getByPlaceholder('搜索考试名称').fill(CET4_EXAM)
-    await page.getByRole('button', { name: '搜索' }).click()
-    await cet4ExamRow(page).getByRole('button', { name: '成绩' }).click()
-    const resultDrawer = page.getByRole('dialog', { name: new RegExp(`${CET4_EXAM} - 成绩`) })
-    await expect(resultDrawer).toBeVisible()
+    const resultDrawer = await openAdminResultDrawer(page, CET4_EXAM)
     await expect(resultDrawer.getByText('待阅卷').first()).toBeVisible()
     await resultDrawer.getByRole('button', { name: '查看详情' }).first().click()
     await expect(page.getByRole('heading', { name: CET4_EXAM })).toBeVisible()
@@ -131,6 +153,7 @@ test.describe('在线考试', () => {
   })
 
   test('答题卡试卷支持材料查看、题号作答、提交和人工阅卷保存', async ({ page }) => {
+    test.setTimeout(60_000)
     const consoleIssues = collectConsoleIssues(page)
     await login(page)
 
@@ -157,10 +180,10 @@ test.describe('在线考试', () => {
     await expect(page.getByText(writingAnswer)).toBeVisible()
 
     await page.locator('li.el-menu-item').filter({ hasText: /^考试管理$/ }).click()
-    await page.getByPlaceholder('搜索考试名称').fill(ANSWER_SHEET_EXAM)
-    await page.getByRole('button', { name: '搜索' }).click()
-    await page.getByRole('row').filter({ hasText: ANSWER_SHEET_EXAM }).getByRole('button', { name: '成绩' }).click()
-    await page.getByRole('dialog', { name: new RegExp(`${ANSWER_SHEET_EXAM} - 成绩`) }).getByRole('button', { name: '查看详情' }).first().click()
+    await expect(page.locator('.admin-page__header h1', { hasText: '考试管理' })).toBeVisible()
+    const resultDrawer = await openAdminResultDrawer(page, ANSWER_SHEET_EXAM)
+    await expect(resultDrawer.getByText('待阅卷').first()).toBeVisible()
+    await resultDrawer.getByRole('button', { name: '查看详情' }).first().click()
     const reviewForm = page.locator('.writing-review-form').first()
     await reviewForm.locator('.el-input-number input').fill('8')
     await reviewForm.getByPlaceholder('阅卷评语').fill('答题卡写作评分')

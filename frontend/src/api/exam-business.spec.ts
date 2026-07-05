@@ -18,18 +18,38 @@ import {
   fetchAdminResultDetail,
   fetchAdminResults,
   fetchExamTasks,
+  fetchExamEvents,
+  fetchExamReviewRechecks,
+  fetchExamReviewRubrics,
+  fetchExamReviewTasks,
   fetchMyExamResultDetail,
   fetchMyExamResults,
   fetchQuestionBanks,
   fetchQuestionCategories,
   fetchQuestionDetail,
+  fetchExamReport,
+  fetchExamResultPolicy,
+  fetchExamSecurityEvents,
+  fetchExamSecurityPolicy,
   importQuestions,
+  generateExamReviewTasks,
+  claimExamReviewTask,
   publishExam,
+  recordExamSecurityEvent,
+  replaceExamParticipants,
+  replaceExamReviewRubrics,
   reviewWritingQuestion,
   revokeExam,
   saveExamAnswers,
   startExam,
   submitExam,
+  updateExamAllowance,
+  updateExamResultPolicy,
+  updateExamReviewRecheck,
+  updateExamReviewTask,
+  updateExamSecurityPolicy,
+  requestExamReviewRecheck,
+  grantExamRetake,
   updateQuestionCategory,
   uploadFile,
 } from './exam-business'
@@ -210,5 +230,81 @@ describe('exam business api', () => {
     expect(apiClient.get).toHaveBeenCalledWith('/api/admin/questions/export', { responseType: 'blob' })
     expect(apiClient.post).toHaveBeenCalledWith('/api/admin/questions/import', expect.any(FormData))
     expect(apiClient.post).toHaveBeenCalledWith('/api/admin/files', expect.any(FormData))
+  })
+
+  it('uses exam governance endpoints', async () => {
+    vi.mocked(apiClient.get).mockResolvedValue(ok({}))
+    vi.mocked(apiClient.post).mockResolvedValue(ok({}))
+    vi.mocked(apiClient.put).mockResolvedValue(ok({}))
+
+    await replaceExamParticipants(1, [2, 3])
+    await updateExamAllowance(1, 2, { extraMinutes: 10, extraAttempts: 1, reason: '补时' })
+    await grantExamRetake(1, 2, '补考')
+    await fetchExamResultPolicy(1)
+    await updateExamResultPolicy(1, { visibleToStudents: true, showAnswers: false, showAnalysis: false, releaseTime: null })
+    await fetchExamReport(1)
+    await fetchExamEvents(1)
+    await fetchExamSecurityPolicy(1)
+    await updateExamSecurityPolicy(1, {
+      requireFullscreen: true,
+      forbidCopyPaste: true,
+      trackFocusLoss: true,
+      maxFocusLossCount: 3,
+      deviceCheckRequired: false,
+    })
+    await fetchExamSecurityEvents(1)
+    await recordExamSecurityEvent(1, { attemptId: 5, eventType: 'COPY', severity: 'MEDIUM', detail: 'copy' })
+    await fetchExamReviewRubrics(1)
+    await replaceExamReviewRubrics(1, [{ title: '内容', description: '内容完整', maxScore: 10, sortOrder: 10 }])
+    await fetchExamReviewTasks(1)
+    await generateExamReviewTasks(1)
+    await claimExamReviewTask(1, 7)
+    await updateExamReviewTask(1, 7, 'COMPLETED')
+    await fetchExamReviewRechecks(1)
+    await requestExamReviewRecheck(1, 7, '需要复核')
+    await updateExamReviewRecheck(1, 9, 'RESOLVED', '复核完成')
+
+    expect(apiClient.put).toHaveBeenCalledWith('/api/admin/exams/1/governance/participants', { userIds: [2, 3] })
+    expect(apiClient.put).toHaveBeenCalledWith('/api/admin/exams/1/governance/participants/2/allowance', {
+      extraMinutes: 10,
+      extraAttempts: 1,
+      reason: '补时',
+    })
+    expect(apiClient.post).toHaveBeenCalledWith('/api/admin/exams/1/governance/participants/2/retake', { reason: '补考' })
+    expect(apiClient.get).toHaveBeenCalledWith('/api/admin/exams/1/governance/result-policy')
+    expect(apiClient.put).toHaveBeenCalledWith('/api/admin/exams/1/governance/result-policy', {
+      visibleToStudents: true,
+      showAnswers: false,
+      showAnalysis: false,
+      releaseTime: null,
+    })
+    expect(apiClient.get).toHaveBeenCalledWith('/api/admin/exams/1/governance/report')
+    expect(apiClient.get).toHaveBeenCalledWith('/api/admin/exams/1/governance/events')
+    expect(apiClient.get).toHaveBeenCalledWith('/api/admin/exams/1/governance/security-policy')
+    expect(apiClient.put).toHaveBeenCalledWith('/api/admin/exams/1/governance/security-policy', {
+      requireFullscreen: true,
+      forbidCopyPaste: true,
+      trackFocusLoss: true,
+      maxFocusLossCount: 3,
+      deviceCheckRequired: false,
+    })
+    expect(apiClient.get).toHaveBeenCalledWith('/api/admin/exams/1/governance/security-events')
+    expect(apiClient.post).toHaveBeenCalledWith('/api/exam/1/security-events', {
+      attemptId: 5,
+      eventType: 'COPY',
+      severity: 'MEDIUM',
+      detail: 'copy',
+    })
+    expect(apiClient.get).toHaveBeenCalledWith('/api/admin/exams/1/governance/rubrics')
+    expect(apiClient.put).toHaveBeenCalledWith('/api/admin/exams/1/governance/rubrics', [
+      { title: '内容', description: '内容完整', maxScore: 10, sortOrder: 10 },
+    ])
+    expect(apiClient.get).toHaveBeenCalledWith('/api/admin/exams/1/governance/review-tasks')
+    expect(apiClient.post).toHaveBeenCalledWith('/api/admin/exams/1/governance/review-tasks/generate')
+    expect(apiClient.post).toHaveBeenCalledWith('/api/admin/exams/1/governance/review-tasks/7/claim')
+    expect(apiClient.put).toHaveBeenCalledWith('/api/admin/exams/1/governance/review-tasks/7', { status: 'COMPLETED' })
+    expect(apiClient.get).toHaveBeenCalledWith('/api/admin/exams/1/governance/rechecks')
+    expect(apiClient.post).toHaveBeenCalledWith('/api/admin/exams/1/governance/review-tasks/7/recheck', { reason: '需要复核' })
+    expect(apiClient.put).toHaveBeenCalledWith('/api/admin/exams/1/governance/rechecks/9', { status: 'RESOLVED', resolution: '复核完成' })
   })
 })

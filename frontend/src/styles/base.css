@@ -273,6 +273,24 @@ button {
   margin-bottom: 26px;
 }
 
+.auth-tabs {
+  width: 100%;
+  margin-bottom: 26px;
+}
+
+.inline-action {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  width: 100%;
+  gap: 10px;
+}
+
+.auth-hint {
+  margin: -10px 0 18px;
+  color: var(--ks-primary);
+  font-size: 13px;
+}
+
 .login-form__head h2 {
   margin: 0;
   font-size: 30px;
@@ -868,6 +886,10 @@ button {
 
   .login-form {
     padding: 32px;
+  }
+
+  .inline-action {
+    grid-template-columns: 1fr;
   }
 
   .dashboard-hero,

@@ -73,6 +73,19 @@ create table question_attachments (
   index idx_question_attachments_question (question_id)
 );
 
+create table file_assets (
+  id bigint primary key auto_increment,
+  original_name varchar(255) not null,
+  file_url varchar(1000) not null,
+  media_type varchar(32) not null,
+  usage_type varchar(64) not null default 'QUESTION_ATTACHMENT',
+  uploaded_by bigint null,
+  uploaded_at datetime not null default current_timestamp,
+  constraint fk_file_assets_uploaded_by foreign key (uploaded_by) references users (id),
+  index idx_file_assets_media_type (media_type),
+  index idx_file_assets_uploaded_at (uploaded_at)
+);
+
 create table exams (
   id bigint primary key auto_increment,
   title varchar(128) not null,
@@ -297,6 +310,46 @@ create table exam_departments (
   constraint fk_exam_departments_department foreign key (department_id) references departments (id)
 );
 
+create table exam_participants (
+  exam_id bigint not null,
+  user_id bigint not null,
+  status varchar(20) not null default 'ASSIGNED',
+  assigned_by bigint null,
+  assigned_at datetime not null default current_timestamp,
+  primary key (exam_id, user_id),
+  constraint fk_exam_participants_exam foreign key (exam_id) references exams (id),
+  constraint fk_exam_participants_user foreign key (user_id) references users (id),
+  constraint fk_exam_participants_assigned_by foreign key (assigned_by) references users (id),
+  index idx_exam_participants_user (user_id),
+  index idx_exam_participants_status (status)
+);
+
+create table exam_participant_allowances (
+  exam_id bigint not null,
+  user_id bigint not null,
+  extra_minutes int not null default 0,
+  extra_attempts int not null default 0,
+  reason varchar(500) null,
+  updated_by bigint null,
+  updated_at datetime not null default current_timestamp on update current_timestamp,
+  primary key (exam_id, user_id),
+  constraint fk_exam_allowances_exam foreign key (exam_id) references exams (id),
+  constraint fk_exam_allowances_user foreign key (user_id) references users (id),
+  constraint fk_exam_allowances_updated_by foreign key (updated_by) references users (id)
+);
+
+create table exam_result_policies (
+  exam_id bigint primary key,
+  visible_to_students bit not null default true,
+  show_answers bit not null default true,
+  show_analysis bit not null default true,
+  release_time datetime null,
+  updated_by bigint null,
+  updated_at datetime not null default current_timestamp on update current_timestamp,
+  constraint fk_exam_result_policies_exam foreign key (exam_id) references exams (id),
+  constraint fk_exam_result_policies_updated_by foreign key (updated_by) references users (id)
+);
+
 create table exam_attempts (
   id bigint primary key auto_increment,
   exam_id bigint not null,
@@ -314,6 +367,24 @@ create table exam_attempts (
   index idx_exam_attempts_exam_user (exam_id, user_id),
   index idx_exam_attempts_user (user_id),
   index idx_exam_attempts_status (status)
+);
+
+create table exam_attempt_events (
+  id bigint primary key auto_increment,
+  exam_id bigint not null,
+  attempt_id bigint null,
+  user_id bigint null,
+  actor_user_id bigint null,
+  action varchar(64) not null,
+  reason varchar(500) null,
+  created_at datetime not null default current_timestamp,
+  constraint fk_exam_attempt_events_exam foreign key (exam_id) references exams (id),
+  constraint fk_exam_attempt_events_attempt foreign key (attempt_id) references exam_attempts (id),
+  constraint fk_exam_attempt_events_user foreign key (user_id) references users (id),
+  constraint fk_exam_attempt_events_actor foreign key (actor_user_id) references users (id),
+  index idx_exam_attempt_events_exam (exam_id),
+  index idx_exam_attempt_events_user (user_id),
+  index idx_exam_attempt_events_action (action)
 );
 
 create table exam_attempt_questions (
@@ -409,6 +480,126 @@ create table exam_results (
   index idx_exam_results_user (user_id)
 );
 
+create table exam_security_policies (
+  exam_id bigint primary key,
+  require_fullscreen bit not null default false,
+  forbid_copy_paste bit not null default true,
+  track_focus_loss bit not null default true,
+  max_focus_loss_count int not null default 3,
+  device_check_required bit not null default false,
+  updated_by bigint null,
+  updated_at datetime not null default current_timestamp on update current_timestamp,
+  constraint fk_exam_security_policies_exam foreign key (exam_id) references exams (id),
+  constraint fk_exam_security_policies_updated_by foreign key (updated_by) references users (id)
+);
+
+create table exam_security_events (
+  id bigint primary key auto_increment,
+  exam_id bigint not null,
+  attempt_id bigint null,
+  user_id bigint not null,
+  event_type varchar(64) not null,
+  severity varchar(20) not null default 'INFO',
+  detail varchar(1000) null,
+  occurred_at datetime not null default current_timestamp,
+  constraint fk_exam_security_events_exam foreign key (exam_id) references exams (id),
+  constraint fk_exam_security_events_attempt foreign key (attempt_id) references exam_attempts (id),
+  constraint fk_exam_security_events_user foreign key (user_id) references users (id),
+  index idx_exam_security_events_exam (exam_id),
+  index idx_exam_security_events_user (user_id),
+  index idx_exam_security_events_type (event_type)
+);
+
+create table exam_review_rubrics (
+  id bigint primary key auto_increment,
+  exam_id bigint not null,
+  title varchar(128) not null,
+  description varchar(1000) null,
+  max_score decimal(6,2) not null default 0,
+  sort_order int not null default 0,
+  created_at datetime not null default current_timestamp,
+  updated_at datetime not null default current_timestamp on update current_timestamp,
+  constraint fk_exam_review_rubrics_exam foreign key (exam_id) references exams (id),
+  index idx_exam_review_rubrics_exam (exam_id)
+);
+
+create table exam_review_tasks (
+  id bigint primary key auto_increment,
+  result_id bigint not null,
+  exam_id bigint not null,
+  reviewer_id bigint null,
+  status varchar(32) not null default 'PENDING',
+  assigned_at datetime null,
+  completed_at datetime null,
+  created_at datetime not null default current_timestamp,
+  updated_at datetime not null default current_timestamp on update current_timestamp,
+  constraint fk_exam_review_tasks_result foreign key (result_id) references exam_results (id),
+  constraint fk_exam_review_tasks_exam foreign key (exam_id) references exams (id),
+  constraint fk_exam_review_tasks_reviewer foreign key (reviewer_id) references users (id),
+  constraint uk_exam_review_tasks_result unique (result_id),
+  index idx_exam_review_tasks_exam (exam_id),
+  index idx_exam_review_tasks_status (status)
+);
+
+create table exam_review_rechecks (
+  id bigint primary key auto_increment,
+  task_id bigint not null,
+  result_id bigint not null,
+  requested_by bigint not null,
+  status varchar(32) not null default 'REQUESTED',
+  reason varchar(1000) null,
+  resolution varchar(1000) null,
+  created_at datetime not null default current_timestamp,
+  resolved_at datetime null,
+  constraint fk_exam_review_rechecks_task foreign key (task_id) references exam_review_tasks (id),
+  constraint fk_exam_review_rechecks_result foreign key (result_id) references exam_results (id),
+  constraint fk_exam_review_rechecks_requested_by foreign key (requested_by) references users (id),
+  index idx_exam_review_rechecks_result (result_id),
+  index idx_exam_review_rechecks_status (status)
+);
+
+create table notifications (
+  id bigint primary key auto_increment,
+  recipient_user_id bigint null,
+  title varchar(128) not null,
+  content varchar(1000) not null,
+  category varchar(64) not null,
+  read_at datetime null,
+  created_at datetime not null default current_timestamp,
+  constraint fk_notifications_recipient foreign key (recipient_user_id) references users (id),
+  index idx_notifications_recipient (recipient_user_id),
+  index idx_notifications_category (category),
+  index idx_notifications_created (created_at)
+);
+
+create table external_integrations (
+  id bigint primary key auto_increment,
+  name varchar(128) not null,
+  integration_type varchar(64) not null,
+  endpoint_url varchar(1000) not null,
+  secret_mask varchar(128) null,
+  enabled bit not null default false,
+  updated_by bigint null,
+  created_at datetime not null default current_timestamp,
+  updated_at datetime not null default current_timestamp on update current_timestamp,
+  constraint fk_external_integrations_updated_by foreign key (updated_by) references users (id),
+  index idx_external_integrations_type (integration_type),
+  index idx_external_integrations_enabled (enabled)
+);
+
+create table external_integration_events (
+  id bigint primary key auto_increment,
+  integration_id bigint not null,
+  event_type varchar(64) not null,
+  status varchar(32) not null,
+  payload_summary varchar(1000) null,
+  error_message varchar(1000) null,
+  created_at datetime not null default current_timestamp,
+  constraint fk_external_integration_events_integration foreign key (integration_id) references external_integrations (id),
+  index idx_external_integration_events_integration (integration_id),
+  index idx_external_integration_events_status (status)
+);
+
 insert into question_categories (id, name, description, sort_order)
 values (1, '默认分类', '初始化题库分类', 10);
 
@@ -453,6 +644,29 @@ values (1, 'CET-4 四级考试平台演示', '简单题库演示考试', 20, '20
 
 insert into exams (id, title, description, qualify_score, start_time, end_time, duration_minutes, time_limit, attempt_limit, exam_mode, display_mode, question_order_mode, open_type, status)
 values (2, '答题卡试卷演示', '试卷材料和答题卡分离的演示考试', 10, '2026-01-01 00:00:00', '2099-12-31 23:59:59', 45, true, null, 'ANSWER_SHEET', 'ALL', 'FIXED', 'PUBLIC', 'PUBLISHED');
+
+insert into exam_result_policies (exam_id, visible_to_students, show_answers, show_analysis)
+values
+  (1, true, true, true),
+  (2, true, true, true);
+
+insert into exam_security_policies (exam_id, require_fullscreen, forbid_copy_paste, track_focus_loss, max_focus_loss_count, device_check_required)
+values
+  (1, false, true, true, 3, false),
+  (2, false, true, true, 3, false);
+
+insert into exam_review_rubrics (exam_id, title, description, max_score, sort_order)
+values
+  (1, '内容完整', '观点明确，覆盖题目要求，有清晰论证。', 6, 10),
+  (1, '语言表达', '语法、词汇和句式准确，表达自然。', 6, 20),
+  (1, '结构组织', '段落清楚，衔接自然，结尾完整。', 3, 30),
+  (2, '答题卡写作表达', '围绕材料完成写作，语言清楚。', 10, 10);
+
+insert into external_integrations (id, name, integration_type, endpoint_url, secret_mask, enabled)
+values (1, '默认 Webhook 边界', 'WEBHOOK', 'https://example.com/kaoshi/webhook', '****demo', false);
+
+insert into notifications (title, content, category)
+values ('平台治理能力已启用', '身份入口、考试治理、安全事件、阅卷任务和外部集成边界已进入当前初始化事实。', 'SYSTEM');
 
 insert into exam_published_questions (id, exam_id, source_question_id, bank_id, bank_name, type, stem, analysis, score, sort_order)
 values

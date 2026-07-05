@@ -4,9 +4,19 @@ import type { ExamBusinessAdapter } from '../exam-business-adapter'
 import type { ApiResponse } from '../../types'
 import type {
   Exam,
+  ExamAttemptEvent,
+  ExamParticipant,
+  ExamReport,
+  ExamReviewRecheck,
+  ExamReviewRubric,
+  ExamReviewTask,
   ExamResult,
   ExamResultDetail,
+  ExamResultPolicy,
+  ExamSecurityEvent,
+  ExamSecurityPolicy,
   ExamSession,
+  FileAsset,
   NamedCategory,
   PageResult,
   Question,
@@ -78,6 +88,10 @@ export const realExamBusinessAdapter: ExamBusinessAdapter = {
     const response = await apiClient.post<ApiResponse<QuestionAttachmentPayload>>('/api/admin/files', form)
     return response.data.data
   },
+  async fetchFileAssets() {
+    const response = await apiClient.get<ApiResponse<FileAsset[]>>('/api/admin/files')
+    return response.data.data
+  },
   async fetchAdminExams(params) {
     const response = await apiClient.get<ApiResponse<PageResult<Exam>>>('/api/admin/exams', { params })
     return response.data.data
@@ -123,6 +137,89 @@ export const realExamBusinessAdapter: ExamBusinessAdapter = {
   },
   async fetchAdminResultDetail(resultId) {
     const response = await apiClient.get<ApiResponse<ExamResultDetail>>(`/api/admin/results/${resultId}`)
+    return response.data.data
+  },
+  async fetchExamParticipants(examId) {
+    const response = await apiClient.get<ApiResponse<ExamParticipant[]>>(`/api/admin/exams/${examId}/governance/participants`)
+    return response.data.data
+  },
+  async replaceExamParticipants(examId, userIds) {
+    const response = await apiClient.put<ApiResponse<ExamParticipant[]>>(`/api/admin/exams/${examId}/governance/participants`, { userIds })
+    return response.data.data
+  },
+  async updateExamAllowance(examId, userId, payload) {
+    const response = await apiClient.put<ApiResponse<ExamParticipant>>(`/api/admin/exams/${examId}/governance/participants/${userId}/allowance`, payload)
+    return response.data.data
+  },
+  async grantExamRetake(examId, userId, reason) {
+    const response = await apiClient.post<ApiResponse<ExamParticipant>>(`/api/admin/exams/${examId}/governance/participants/${userId}/retake`, { reason })
+    return response.data.data
+  },
+  async fetchExamResultPolicy(examId) {
+    const response = await apiClient.get<ApiResponse<ExamResultPolicy>>(`/api/admin/exams/${examId}/governance/result-policy`)
+    return response.data.data
+  },
+  async updateExamResultPolicy(examId, payload) {
+    const response = await apiClient.put<ApiResponse<ExamResultPolicy>>(`/api/admin/exams/${examId}/governance/result-policy`, payload)
+    return response.data.data
+  },
+  async fetchExamReport(examId) {
+    const response = await apiClient.get<ApiResponse<ExamReport>>(`/api/admin/exams/${examId}/governance/report`)
+    return response.data.data
+  },
+  async fetchExamEvents(examId) {
+    const response = await apiClient.get<ApiResponse<ExamAttemptEvent[]>>(`/api/admin/exams/${examId}/governance/events`)
+    return response.data.data
+  },
+  async fetchExamSecurityPolicy(examId) {
+    const response = await apiClient.get<ApiResponse<ExamSecurityPolicy>>(`/api/admin/exams/${examId}/governance/security-policy`)
+    return response.data.data
+  },
+  async updateExamSecurityPolicy(examId, payload) {
+    const response = await apiClient.put<ApiResponse<ExamSecurityPolicy>>(`/api/admin/exams/${examId}/governance/security-policy`, payload)
+    return response.data.data
+  },
+  async fetchExamSecurityEvents(examId) {
+    const response = await apiClient.get<ApiResponse<ExamSecurityEvent[]>>(`/api/admin/exams/${examId}/governance/security-events`)
+    return response.data.data
+  },
+  async recordExamSecurityEvent(examId, payload) {
+    await apiClient.post<ApiResponse<void>>(`/api/exam/${examId}/security-events`, payload)
+  },
+  async fetchExamReviewRubrics(examId) {
+    const response = await apiClient.get<ApiResponse<ExamReviewRubric[]>>(`/api/admin/exams/${examId}/governance/rubrics`)
+    return response.data.data
+  },
+  async replaceExamReviewRubrics(examId, payload) {
+    const response = await apiClient.put<ApiResponse<ExamReviewRubric[]>>(`/api/admin/exams/${examId}/governance/rubrics`, payload)
+    return response.data.data
+  },
+  async fetchExamReviewTasks(examId) {
+    const response = await apiClient.get<ApiResponse<ExamReviewTask[]>>(`/api/admin/exams/${examId}/governance/review-tasks`)
+    return response.data.data
+  },
+  async generateExamReviewTasks(examId) {
+    const response = await apiClient.post<ApiResponse<ExamReviewTask[]>>(`/api/admin/exams/${examId}/governance/review-tasks/generate`)
+    return response.data.data
+  },
+  async claimExamReviewTask(examId, taskId) {
+    const response = await apiClient.post<ApiResponse<ExamReviewTask[]>>(`/api/admin/exams/${examId}/governance/review-tasks/${taskId}/claim`)
+    return response.data.data
+  },
+  async updateExamReviewTask(examId, taskId, status) {
+    const response = await apiClient.put<ApiResponse<ExamReviewTask[]>>(`/api/admin/exams/${examId}/governance/review-tasks/${taskId}`, { status })
+    return response.data.data
+  },
+  async fetchExamReviewRechecks(examId) {
+    const response = await apiClient.get<ApiResponse<ExamReviewRecheck[]>>(`/api/admin/exams/${examId}/governance/rechecks`)
+    return response.data.data
+  },
+  async requestExamReviewRecheck(examId, taskId, reason) {
+    const response = await apiClient.post<ApiResponse<ExamReviewRecheck[]>>(`/api/admin/exams/${examId}/governance/review-tasks/${taskId}/recheck`, { reason })
+    return response.data.data
+  },
+  async updateExamReviewRecheck(examId, recheckId, status, resolution) {
+    const response = await apiClient.put<ApiResponse<ExamReviewRecheck[]>>(`/api/admin/exams/${examId}/governance/rechecks/${recheckId}`, { status, resolution })
     return response.data.data
   },
   async fetchExamTasks() {

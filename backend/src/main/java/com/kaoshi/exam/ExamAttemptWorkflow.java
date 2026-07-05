@@ -4,6 +4,7 @@ import com.kaoshi.common.api.ErrorCode;
 import com.kaoshi.common.exception.BusinessException;
 import com.kaoshi.exam.domain.Exam;
 import com.kaoshi.exam.dto.AnswerSubmitItem;
+import com.kaoshi.exam.governance.ExamGovernanceService;
 import com.kaoshi.exam.mapper.ExamMapper;
 import com.kaoshi.question.QuestionType;
 
@@ -26,9 +27,11 @@ import static com.kaoshi.exam.ExamRowValues.value;
 
 final class ExamAttemptWorkflow {
     private final ExamMapper examMapper;
+    private final ExamGovernanceService governanceService;
 
-    ExamAttemptWorkflow(ExamMapper examMapper) {
+    ExamAttemptWorkflow(ExamMapper examMapper, ExamGovernanceService governanceService) {
         this.examMapper = examMapper;
+        this.governanceService = governanceService;
     }
 
     void ensureExamAvailable(Exam exam) {
@@ -45,21 +48,16 @@ final class ExamAttemptWorkflow {
     }
 
     void ensureExamOpenToUser(Exam exam, Long userId) {
-        if ("PUBLIC".equals(exam.getOpenType())) {
-            return;
-        }
-        Long departmentId = examMapper.findUserDepartmentId(userId);
-        if (departmentId == null || !examMapper.findExamDepartmentIds(exam.getId()).contains(departmentId)) {
-            throw new BusinessException(ErrorCode.FORBIDDEN, "没有该考试权限");
-        }
+        governanceService.ensureExamOpenToUser(exam, userId);
     }
 
     void ensureAttemptLimit(Exam exam, Long userId) {
-        if (exam.getAttemptLimit() == null) {
+        Integer effectiveLimit = governanceService.effectiveAttemptLimit(exam, userId);
+        if (effectiveLimit == null) {
             return;
         }
         int submittedCount = examMapper.countSubmittedAttempts(exam.getId(), userId);
-        if (submittedCount >= exam.getAttemptLimit()) {
+        if (submittedCount >= effectiveLimit) {
             throw new BusinessException(ErrorCode.CONFLICT, "已达到本场考试可考次数");
         }
     }
@@ -83,7 +81,8 @@ final class ExamAttemptWorkflow {
 
     boolean isAttemptPastDeadline(Exam exam, Map<String, Object> attempt, Duration grace) {
         LocalDateTime startedAt = dateTimeValue(value(attempt, "startedAt"));
-        LocalDateTime deadline = startedAt.plusMinutes(exam.getDurationMinutes()).plus(grace);
+        Long userId = longValue(value(attempt, "userId"));
+        LocalDateTime deadline = startedAt.plusMinutes(governanceService.effectiveDurationMinutes(exam, userId)).plus(grace);
         return LocalDateTime.now().isAfter(deadline);
     }
 
